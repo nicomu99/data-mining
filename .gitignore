@@ -1,4 +1,5 @@
 .idea
 /mnist/data
 
+res/
 *.jpg
