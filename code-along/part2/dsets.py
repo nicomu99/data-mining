@@ -82,7 +82,7 @@ def get_candidate_info_list(require_on_disk=True):
 
 class Ct:
     def __init__(self, series_uid):
-        mhd_path = glob.glob('data/subset*/{}.mhd'.format(series_uid))[0]
+        mhd_path = glob.glob(f'data/subset*/{series_uid}.mhd')[0]
 
         ct_mhd = Sitk.ReadImage(mhd_path)       # Implicitly consumes the .raw file in addition to .mhd
         ct_a = np.array(Sitk.GetArrayFromImage(ct_mhd), dtype=np.float32)   # Shape (slice, height, width)
