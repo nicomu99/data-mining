@@ -8,8 +8,8 @@ import torch.nn as nn
 from torch.optim import SGD
 from torch.utils.data import DataLoader
 
-from util.util import enumerate_with_estimate
-from util.logconf import logging
+from utils import enumerate_with_estimate
+from utils import logging
 from dsets import LunaDataset
 from model import LunaModel
 

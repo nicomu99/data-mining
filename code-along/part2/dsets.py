@@ -9,8 +9,8 @@ from collections import namedtuple
 import numpy as np
 import SimpleITK as Sitk
 
-from util.disk import get_cache
-from util.util import XyzTuple, xyz2irc
+from utils import get_cache
+from utils import XyzTuple, xyz2irc
 
 import torch
 import torch.cuda
@@ -23,7 +23,7 @@ CandidateInfoTuple = namedtuple(
     'isNodule_bool, diameter_mm, series_uid, center_xyz'
 )
 
-@functools.lru_cache(1)     # Caches the most recent call with same argument
+@functools.lru_cache(1)     # Caches the most recent call with same argument, i.e. the return value is not recomputed
 def get_candidate_info_list(require_on_disk=True):
     # Mhd is a header file for image metadata
     mhd_list = glob.glob('data/subset*/*.mhd')      # Get all files with ending .mhd
@@ -81,6 +81,7 @@ def get_candidate_info_list(require_on_disk=True):
     return candidate_info_list
 
 class Ct:
+    # Class for holding each individual ct scan
     def __init__(self, series_uid):
         mhd_path = glob.glob(f'data/subset*/{series_uid}.mhd')[0]
 
@@ -97,7 +98,7 @@ class Ct:
 
     def get_raw_candidate(self, center_xyz, width_irc):
         # Takes the center expressed in xyz and voxel width
-        # Returns cubic chunk of CT and center candidate as IRC coordinates
+        # Returns cubic chunk of CT and center as IRC coordinates of a candidate nodule
         center_irc = xyz2irc(center_xyz, self.origin_xyz, self.vx_size_xyz, self.direction_a)
 
         slice_list = []
@@ -120,14 +121,18 @@ class Ct:
 
             slice_list.append(slice(start_ndx, end_ndx))
 
-        ct_chunk = self.hu_a[tuple(slice_list)]
+        ct_chunk = self.hu_a[tuple(slice_list)]     # Contains the chunk with candidate nodule
         return ct_chunk, center_irc
 
 # Cache the most recent ct in memory
+# Several candidates have the same ct, so it does not have to be reloaded to memory every time
+# But order matters!
 @functools.lru_cache(1, typed=True)
 def get_ct(series_uid):
     return Ct(series_uid)
 
+# The calls to get_ct_raw_candidate are cached on the disk, i.e. we cache the float arrays of the candidate areas
+# This significantly reduces run time, as the size of what is loaded is decrease from 2^25 to 2^15 elements per ct
 @raw_cache.memoize(typed=True)
 def get_ct_raw_candidate(series_uid, center_xyz, width_irc):
     ct = get_ct(series_uid)
@@ -159,6 +164,11 @@ class LunaDataset(Dataset):
         return len(self.candidate_info_list)
 
     def __getitem__(self, index):
+        """
+        Returns item at index `index`.
+        :param index: The index of the candidate we want to fetch.
+        :return: Tuple with candidate chunk, one-hot encoded label, series uid and center of chunk.
+        """
         candidate_info_tup = self.candidate_info_list[index]
         width_irc = (32, 48, 48)
 
@@ -172,6 +182,7 @@ class LunaDataset(Dataset):
         candidate_t = candidate_t.to(torch.float32)
         candidate_t = candidate_t.unsqueeze(0)  # Add channel dimension
 
+        # Classification tensor for CrossEntropy
         pos_t = torch.tensor([
             not candidate_info_tup.isNodule_bool,
             candidate_info_tup.isNodule_bool
