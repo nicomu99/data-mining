@@ -20,6 +20,7 @@ class GzipDisk(Disk):
 
         :param value: value to convert
         :param bool read: True when value is file-like object
+        :param key:
         :return: (size, mode, filename, value) tuple for Cache table
         """
         # pylint: disable=unidiomatic-typecheck
