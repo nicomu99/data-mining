@@ -40,6 +40,8 @@ class LunaModel(nn.Module):
         self.head_linear = nn.Linear(1152, 2)
         self.head_softmax = nn.Softmax(dim=1)
 
+        self._init_weights()
+
     def forward(self, input_batch):
         out = self.tail_batchnorm(input_batch)
 
@@ -59,7 +61,7 @@ class LunaModel(nn.Module):
 
     def _init_weights(self):
         for m in self.modules():
-            if type(m) in {nn.Linear, nn.Conv3d}:
+            if type(m) in {nn.Linear, nn.Conv3d, nn.Conv2d, nn.ConvTranspose2d, nn.ConvTranspose3d}:
                 nn.init.kaiming_normal_(m.weight.data, a=0, mode='fan_out', nonlinearity='relu')
                 if m.bias is not None:
                     fan_in, fan_out = nn.init._calculate_fan_in_and_fan_out(m.weight.data)

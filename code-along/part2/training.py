@@ -175,7 +175,7 @@ class LunaTrainingApp:
         logits, probability = self.model(input_g)
 
         loss_func = nn.CrossEntropyLoss(reduction='none')       # reduction='none' gives loss per sample
-        loss = loss_func(logits, label_g[:,1])
+        loss = loss_func(logits, label_g[:, 1])
 
         start_index = batch_index * batch_size
         end_index = start_index + label_t.size(0)
