@@ -258,15 +258,16 @@ class LunaTrainingApp:
         )
 
         log.info(
-            f'E{epoch_index} {mode_str + "_neg":8}{metrics_dict["loss/neg"]:.4f} loss' +
+            f'E{epoch_index} {mode_str + "_neg":8} {metrics_dict["loss/neg"]:.4f} loss ' +
             f'{metrics_dict["correct/neg"]:-5.1f}% correct ({neg_correct:} of {neg_count:})'
         )
 
         log.info(
-            f'E{epoch_index} {mode_str + "_pos":8}{metrics_dict["loss/pos"]:.4f} loss' +
+            f'E{epoch_index} {mode_str + "_pos":8} {metrics_dict["loss/pos"]:.4f} loss ' +
             f'{metrics_dict["correct/pos"]:-5.1f}% correct ({pos_correct:} of {pos_count:})'
         )
 
+        self.init_tensorboard_writers()
         writer = getattr(self, mode_str + '_writer')
 
         for key, value in metrics_dict.items():
