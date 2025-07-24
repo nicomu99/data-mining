@@ -11,10 +11,14 @@ import SimpleITK as Sitk
 
 from utils import get_cache
 from utils import XyzTuple, xyz2irc
+from utils import logging
 
 import torch
 import torch.cuda
 from torch.utils.data import Dataset
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
 raw_cache = get_cache('part2ch10_raw')
 
@@ -161,6 +165,12 @@ class LunaDataset(Dataset):
             del self.candidate_info_list[::val_stride]
             assert self.candidate_info_list
 
+        log.info("{!r}: {} {} samples".format(
+            self,
+            len(self.candidate_info_list),
+            "validation" if is_val_set else "training",
+        ))
+
     def __len__(self):
         return len(self.candidate_info_list)
 
@@ -185,9 +195,11 @@ class LunaDataset(Dataset):
 
         # Classification tensor for CrossEntropy
         pos_t = torch.tensor([
-            not candidate_info_tup.isNodule_bool,
-            candidate_info_tup.isNodule_bool
-        ])
+                not candidate_info_tup.isNodule_bool,
+                candidate_info_tup.isNodule_bool
+            ],
+            dtype=torch.long
+        )
 
         return (
             candidate_t,

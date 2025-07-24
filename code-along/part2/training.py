@@ -1,9 +1,11 @@
+import os
 import argparse
 import datetime
 import numpy as np
 
+from torch.utils.tensorboard import SummaryWriter
+
 import torch
-import torch.cuda
 import torch.nn as nn
 from torch.optim import SGD
 from torch.utils.data import DataLoader
@@ -46,9 +48,24 @@ class LunaTrainingApp:
             type=int,
         )
 
+        parser.add_argument(
+            '--tb-prefix',
+            default='p2ch11',
+            help="Data prefix to use for Tensorboard run. Defaults to chapter.",
+        )
+
+        parser.add_argument(
+            'comment',
+            help="Comment suffix for Tensorboard run.",
+            nargs='?',
+            default='LunaTrain',
+        )
+
         self.cli_args = parser.parse_args(sys_argv)
         self.time_str = datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S')
 
+        self.train_writer = None
+        self.val_writer = None
         self.total_training_samples_count = 0
 
         self.use_cuda = torch.cuda.is_available()
@@ -107,6 +124,17 @@ class LunaTrainingApp:
 
         return val_dl
 
+    def init_tensorboard_writers(self):
+        if self.train_writer is None:
+            log_dir = os.path.join('runs', self.cli_args.tb_prefix, self.time_str)
+
+            self.train_writer = SummaryWriter(
+                log_dir=log_dir + '-train_cls-' + self.cli_args.comment
+            )
+            self.val_writer = SummaryWriter(
+                log_dir=log_dir + '-train_cls-' + self.cli_args.comment
+            )
+
     def main(self):
         log.info(f'Starting {type(self).__name__}, {self.cli_args}')
 
@@ -114,11 +142,20 @@ class LunaTrainingApp:
         val_dl = self.init_val_dataloader()
 
         for epoch in range(1, self.cli_args.epochs + 1):
+            log.info(
+                f'Epoch {epoch} of {self.cli_args.epochs}, {len(train_dl)}/{len(val_dl)}' +
+                f'batches of size {self.cli_args.batch_size}*{torch.cuda.device_count() if self.use_cuda else 1}'
+            )
+
             train_metrics = self.train(epoch, train_dl)
             self.log_metrics(epoch, 'train', train_metrics)
 
             val_metrics = self.eval(epoch, val_dl)
             self.log_metrics(epoch, 'eval', val_metrics)
+
+        if hasattr(self, 'train_writer'):
+            self.train_writer.close()
+            self.val_writer.close()
 
     def train(self, epoch, dataloader):
         self.model.train()
@@ -139,8 +176,16 @@ class LunaTrainingApp:
             self.optimizer.zero_grad()
 
             train_loss = self.compute_batch_loss(batch_index, batch_tuple, dataloader.batch_size, train_metrics)
+
             train_loss.backward()
             self.optimizer.step()
+
+            # # This is for adding the model graph to TensorBoard.
+            # if epoch == 1 and batch_index == 0:
+            #     with torch.no_grad():
+            #         model = LunaModel()
+            #         self.train_writer.add_graph(model, batch_tuple[0], verbose=True)
+            #         self.train_writer.close()
 
         self.total_training_samples_count += len(dataloader.dataset)
         return train_metrics.to('cpu')
@@ -186,8 +231,7 @@ class LunaTrainingApp:
 
         return loss.mean()
 
-    @staticmethod
-    def log_metrics(epoch_index, mode_str, metrics, classification_threshold=0.5):
+    def log_metrics(self, epoch_index, mode_str, metrics, classification_threshold=0.5):
         neg_label_mask = metrics[METRICS_LABEL_INDEX] <= classification_threshold
         neg_pred_mask = metrics[METRICS_PRED_INDEX] <= classification_threshold
 
@@ -222,6 +266,38 @@ class LunaTrainingApp:
             f'E{epoch_index} {mode_str + "_pos":8}{metrics_dict["loss/pos"]:.4f} loss' +
             f'{metrics_dict["correct/pos"]:-5.1f}% correct ({pos_correct:} of {pos_count:})'
         )
+
+        writer = getattr(self, mode_str + '_writer')
+
+        for key, value in metrics_dict.items():
+            writer.add_scalar(key, value, self.total_training_samples_count)
+
+        writer.add_pr_curve(
+            'pr',
+            metrics[METRICS_LABEL_INDEX],
+            metrics[METRICS_PRED_INDEX],
+            self.total_training_samples_count,
+        )
+
+        bins = [x / 50.0 for x in range(51)]
+
+        neg_hist_mask = neg_label_mask & (metrics[METRICS_PRED_INDEX] > 0.01)
+        pos_hist_mask = pos_label_mask & (metrics[METRICS_PRED_INDEX] < 0.99)
+
+        if neg_hist_mask.any():
+            writer.add_histogram(
+                'is_neg',
+                metrics[METRICS_PRED_INDEX, neg_hist_mask],
+                self.total_training_samples_count,
+                bins=bins,
+            )
+        if pos_hist_mask.any():
+            writer.add_histogram(
+                'is_pos',
+                metrics[METRICS_PRED_INDEX, pos_hist_mask],
+                self.total_training_samples_count,
+                bins=bins,
+            )
 
 
 if __name__ == '__main__':
