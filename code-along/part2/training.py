@@ -65,7 +65,7 @@ class LunaTrainingApp:
         self.time_str = datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S')
 
         self.train_writer = None
-        self.val_writer = None
+        self.eval_writer = None
         self.total_training_samples_count = 0
 
         self.use_cuda = torch.cuda.is_available()
@@ -131,7 +131,7 @@ class LunaTrainingApp:
             self.train_writer = SummaryWriter(
                 log_dir=log_dir + '-train_cls-' + self.cli_args.comment
             )
-            self.val_writer = SummaryWriter(
+            self.eval_writer = SummaryWriter(
                 log_dir=log_dir + '-train_cls-' + self.cli_args.comment
             )
 
@@ -143,7 +143,7 @@ class LunaTrainingApp:
 
         for epoch in range(1, self.cli_args.epochs + 1):
             log.info(
-                f'Epoch {epoch} of {self.cli_args.epochs}, {len(train_dl)}/{len(val_dl)}' +
+                f'Epoch {epoch} of {self.cli_args.epochs}, {len(train_dl)}/{len(val_dl)} ' +
                 f'batches of size {self.cli_args.batch_size}*{torch.cuda.device_count() if self.use_cuda else 1}'
             )
 
@@ -155,7 +155,7 @@ class LunaTrainingApp:
 
         if hasattr(self, 'train_writer'):
             self.train_writer.close()
-            self.val_writer.close()
+            self.eval_writer.close()
 
     def train(self, epoch, dataloader):
         self.model.train()
@@ -232,10 +232,10 @@ class LunaTrainingApp:
         return loss.mean()
 
     def log_metrics(self, epoch_index, mode_str, metrics, classification_threshold=0.5):
-        neg_label_mask = metrics[METRICS_LABEL_INDEX] <= classification_threshold
+        neg_label_mask: torch.Tensor = metrics[METRICS_LABEL_INDEX] <= classification_threshold
         neg_pred_mask = metrics[METRICS_PRED_INDEX] <= classification_threshold
 
-        pos_label_mask = torch.tensor(~neg_label_mask)
+        pos_label_mask: torch.Tensor = ~neg_label_mask
         pos_pred_mask = ~neg_pred_mask
 
         neg_count = int(neg_label_mask.sum())
