@@ -8,9 +8,10 @@ import io
 BytesIO = io.BytesIO
 
 class GzipDisk(Disk):
+    # Adds Gzip compression to when storing binary data and decompresses when retrieving it
     def store(self, value, read, key=None):
         """
-        Override from base class diskcache.Disk.
+        Override from base class diskcache.Disk. Compresses value if it is in bytes.
 
         Chunking is due to needing to work on pythons < 2.7.13:
         - Issue #27130: In the "zlib" module, fix handling of large buffers
@@ -43,7 +44,8 @@ class GzipDisk(Disk):
 
     def fetch(self, mode, filename, value, read):
         """
-        Override from base class diskcache.Disk.
+        Override from base class diskcache.Disk. Fetches data from the disk, decompresses it if necessary
+        and returns it as a python object.
 
         Chunking is due to needing to work on pythons < 2.7.13:
         - Issue #27130: In the "zlib" module, fix handling of large buffers

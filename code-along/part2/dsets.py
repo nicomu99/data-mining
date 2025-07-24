@@ -133,6 +133,7 @@ def get_ct(series_uid):
 
 # The calls to get_ct_raw_candidate are cached on the disk, i.e. we cache the float arrays of the candidate areas
 # This significantly reduces run time, as the size of what is loaded is decrease from 2^25 to 2^15 elements per ct
+# Purpose: Cache the results of an expensive CT scan preprocessing to avoid re-computation.
 @raw_cache.memoize(typed=True)
 def get_ct_raw_candidate(series_uid, center_xyz, width_irc):
     ct = get_ct(series_uid)
