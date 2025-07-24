@@ -3,7 +3,7 @@ import datetime
 import collections
 import numpy as np
 
-from logconf import logging
+from .logconf import logging
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
