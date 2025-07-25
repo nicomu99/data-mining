@@ -12,6 +12,7 @@ import SimpleITK as Sitk
 from utils import get_cache
 from utils import XyzTuple, xyz2irc
 from utils import logging
+from utils import get_data_root
 
 import torch
 import torch.cuda
@@ -22,6 +23,8 @@ log.setLevel(logging.DEBUG)
 
 raw_cache = get_cache('part2ch10_raw')
 
+BASE_PATH = get_data_root()
+
 CandidateInfoTuple = namedtuple(
     'CandidateInfoTuple',
     'isNodule_bool, diameter_mm, series_uid, center_xyz'
@@ -30,12 +33,13 @@ CandidateInfoTuple = namedtuple(
 @functools.lru_cache(1)     # Caches the most recent call with same argument, i.e. the return value is not recomputed
 def get_candidate_info_list(require_on_disk=True):
     # Mhd is a header file for image metadata
-    mhd_list = glob.glob('data/subset*/*.mhd')      # Get all files with ending .mhd
+    mhd_list = glob.glob(os.path.join(BASE_PATH, 'data/subset*/*.mhd'))      # Get all files with ending .mhd
     present_on_disk_set = {os.path.split(p)[-1][:-4] for p in mhd_list}     # Extracts the seriesuid from path name
 
     # Retrieve center and diameter from annotations.csv
     diameter_dict = {}
-    with open('data/annotations.csv', 'r') as f:
+    annotation_file = os.path.join(BASE_PATH, 'data/annotations.csv')
+    with open(annotation_file, 'r') as f:
         for row in list(csv.reader(f))[1:]:     # Skip header row
             series_uid = row[0]
             annotation_center_xyz = tuple([float(x) for x in row[1:4]])
@@ -46,7 +50,8 @@ def get_candidate_info_list(require_on_disk=True):
             )
 
     candidate_info_list = []
-    with open('data/candidates.csv', 'r') as f:
+    candidate_file = os.path.join(BASE_PATH, 'data/candidates.csv')
+    with open(candidate_file, 'r') as f:
         for row in list(csv.reader(f))[1:]:     # Again skip header
             series_uid = row[0]
 
@@ -87,7 +92,7 @@ def get_candidate_info_list(require_on_disk=True):
 class Ct:
     # Class for holding each individual ct scan
     def __init__(self, series_uid):
-        mhd_path = glob.glob(f'data/subset*/{series_uid}.mhd')[0]
+        mhd_path = glob.glob(os.path.join(BASE_PATH, f'data/subset*/{series_uid}.mhd'))[0]
 
         ct_mhd = Sitk.ReadImage(mhd_path)       # Implicitly consumes the .raw file in addition to .mhd
         ct_a = np.array(Sitk.GetArrayFromImage(ct_mhd), dtype=np.float32)   # Shape (slice, height, width)
