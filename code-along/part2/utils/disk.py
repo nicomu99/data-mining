@@ -5,7 +5,9 @@ from diskcache.core import MODE_BINARY
 
 BytesType = bytes
 import io
+
 BytesIO = io.BytesIO
+
 
 class GzipDisk(Disk):
     # Adds Gzip compression to when storing binary data and decompresses when retrieving it
@@ -33,14 +35,13 @@ class GzipDisk(Disk):
             str_io = BytesIO()
             gz_file = gzip.GzipFile(mode='wb', compresslevel=1, fileobj=str_io)
 
-            for offset in range(0, len(value), 2**30):
-                gz_file.write(value[offset:offset+2**30])
+            for offset in range(0, len(value), 2 ** 30):
+                gz_file.write(value[offset:offset + 2 ** 30])
             gz_file.close()
 
             value = str_io.getvalue()
 
         return super(GzipDisk, self).store(value, read)
-
 
     def fetch(self, mode, filename, value, read):
         """
@@ -67,7 +68,7 @@ class GzipDisk(Disk):
             read_csio = BytesIO()
 
             while True:
-                uncompressed_data = gz_file.read(2**30)
+                uncompressed_data = gz_file.read(2 ** 30)
                 if uncompressed_data:
                     read_csio.write(uncompressed_data)
                 else:
@@ -77,12 +78,13 @@ class GzipDisk(Disk):
 
         return value
 
+
 def get_cache(scope_str):
     return FanoutCache(
-            'data/cache/' + scope_str,
-           disk=GzipDisk,
-           shards=64,
-           timeout=1,
-           size_limit=3e11,
-           # disk_min_file_size=2**20,
-       )
+        'data/cache/' + scope_str,
+        disk=GzipDisk,
+        shards=48,
+        timeout=1,
+        size_limit=3e11,
+        # disk_min_file_size=2**20,
+    )
