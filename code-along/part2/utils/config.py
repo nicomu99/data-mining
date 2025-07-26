@@ -8,11 +8,14 @@ def set_mode(mode):
 
     _mode = mode
 
+def get_mode():
+    if _mode is None:
+        raise RuntimeError("Config mode not set. Call set_mode('local') or set_mode('colab') first.")
+
+    return _mode
+
 def get_data_root():
     if _mode is None:
         raise RuntimeError("Config mode not set. Call set_mode('local') or set_mode('colab') first.")
 
-    if _mode == 'colab':
-        return '/content/drive/MyDrive/deep-learning-with-pytorch/'
-    else:
-        return ''
+    return ''

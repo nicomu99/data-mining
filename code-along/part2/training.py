@@ -14,6 +14,8 @@ from utils import enumerate_with_estimate
 from utils import logging
 from dsets import LunaDataset
 from model import LunaModel
+from utils import get_mode
+from utils import fetch_data
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -138,6 +140,10 @@ class LunaTrainingApp:
     def main(self):
         log.info(f'Starting {type(self).__name__}, {self.cli_args}')
 
+        if get_mode() == 'colab':
+            fetch_data()
+
+
         train_dl = self.init_train_dataloader()
         val_dl = self.init_val_dataloader()
 
@@ -168,8 +174,7 @@ class LunaTrainingApp:
 
         batch_iter = enumerate_with_estimate(
             dataloader,
-            f'E{epoch} Training',
-            start_index=dataloader.num_workers
+            f'E{epoch} Training'
         )
 
         for batch_index, batch_tuple in batch_iter:
@@ -202,8 +207,7 @@ class LunaTrainingApp:
 
             batch_iter = enumerate_with_estimate(
                 dataloader,
-                f'{epoch} Validation',
-                start_index=dataloader.num_workers
+                f'{epoch} Validation'
             )
 
             for batch_index, batch_tuple in batch_iter:
@@ -212,6 +216,8 @@ class LunaTrainingApp:
         return val_metrics.to('cpu')
 
     def compute_batch_loss(self, batch_index, batch_tuple, batch_size, metrics):
+        # log.debug(f'Calculating loss for batch {batch_index} on device {self.device}')
+
         input_t, label_t, _series_list, _center_list = batch_tuple
 
         input_g = input_t.to(self.device, non_blocking=True)
