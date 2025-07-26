@@ -13,5 +13,8 @@ __all__ = [
     "enumerate_with_estimate",
     "set_mode",
     "get_data_root",
-    "get_mode"
+    "get_mode",
+    "move_file",
+    "move_and_unzip_file",
+    "fetch_data"
 ]
