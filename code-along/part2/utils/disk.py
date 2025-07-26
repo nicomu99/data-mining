@@ -85,6 +85,6 @@ def get_cache(scope_str):
         disk=GzipDisk,
         shards=48,
         timeout=1,
-        size_limit=3e11,
+        size_limit=60 * 1024**3,
         # disk_min_file_size=2**20,
     )
