@@ -3,7 +3,7 @@ import subprocess
 import shutil
 import concurrent.futures
 
-from util import logging
+from .logconf import logging
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -32,7 +32,7 @@ def move_and_unzip_file(file_name):
 
     log.info(f'Removing file {file_name}')
 
-    shutil.rmtree(local_zip_file)
+    os.remove(local_zip_file)
 
 def fetch_data():
     if not os.path.exists(local_path):
@@ -41,7 +41,7 @@ def fetch_data():
     missing_subsets = []
     for subset_index in range(10):
         subset = f'subset{subset_index}'
-        if not os.path.exists(subset):
+        if not os.path.exists(os.path.join(local_path, subset)):
             missing_subsets.append(subset)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
