@@ -2,6 +2,7 @@ import os
 import argparse
 import datetime
 import numpy as np
+from tqdm import tqdm
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -143,7 +144,6 @@ class LunaTrainingApp:
         if get_mode() == 'colab':
             fetch_data()
 
-
         train_dl = self.init_train_dataloader()
         val_dl = self.init_val_dataloader()
 
@@ -172,12 +172,8 @@ class LunaTrainingApp:
             device=self.device
         )
 
-        batch_iter = enumerate_with_estimate(
-            dataloader,
-            f'E{epoch} Training'
-        )
-
-        for batch_index, batch_tuple in batch_iter:
+        train_progress = tqdm(dataloader, desc=f'E{epoch} Training', total=len(dataloader))
+        for batch_index, batch_tuple in enumerate(train_progress):
             self.optimizer.zero_grad()
 
             train_loss = self.compute_batch_loss(batch_index, batch_tuple, dataloader.batch_size, train_metrics)
@@ -205,12 +201,8 @@ class LunaTrainingApp:
                 device=self.device
             )
 
-            batch_iter = enumerate_with_estimate(
-                dataloader,
-                f'{epoch} Validation'
-            )
-
-            for batch_index, batch_tuple in batch_iter:
+            val_progress = tqdm(dataloader, desc=f'E{epoch} Validation', total=len(dataloader))
+            for batch_index, batch_tuple in enumerate(val_progress):
                 self.compute_batch_loss(batch_index, batch_tuple, dataloader.batch_size, val_metrics)
 
         return val_metrics.to('cpu')
