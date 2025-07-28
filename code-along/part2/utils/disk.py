@@ -1,5 +1,7 @@
 import gzip
 
+from .config import get_mode
+
 from diskcache import FanoutCache, Disk
 from diskcache.core import MODE_BINARY
 
@@ -83,8 +85,8 @@ def get_cache(scope_str):
     return FanoutCache(
         'data/cache/' + scope_str,
         disk=GzipDisk,
-        shards=48,
+        shards=64,
         timeout=1,
-        size_limit=60 * 1024**3,
+        size_limit= 260 * 1024**3 # if get_mode() == 'local' else 80 * 1024**3,
         # disk_min_file_size=2**20,
     )

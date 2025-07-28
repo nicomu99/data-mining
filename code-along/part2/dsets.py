@@ -112,7 +112,7 @@ class Ct:
 
         slice_list = []
         for axis, center_val in enumerate(center_irc):
-            start_ndx = int(round(center_val) - width_irc[axis] / 2)
+            start_ndx = int(round(center_val - width_irc[axis] / 2))
             end_ndx = int(start_ndx + width_irc[axis])
 
             assert 0 <= center_val < self.hu_a.shape[axis], repr(

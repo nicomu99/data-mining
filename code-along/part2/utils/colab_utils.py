@@ -17,6 +17,9 @@ def move_file(file_name):
 
     shutil.copy(drive_file, local_path)
 
+def delete_directory(dir_name):
+    shutil.rmtree(os.path.join(local_path, dir_name))
+
 def move_and_unzip_file(file_name):
     local_zip_file = os.path.join(local_path, file_name)
 
@@ -34,21 +37,25 @@ def move_and_unzip_file(file_name):
 
     os.remove(local_zip_file)
 
-def fetch_data():
+def fetch_data(subset=None):
     if not os.path.exists(local_path):
         os.makedirs(local_path)
 
-    missing_subsets = []
-    for subset_index in range(10):
-        subset = f'subset{subset_index}'
-        if not os.path.exists(os.path.join(local_path, subset)):
-            missing_subsets.append(subset)
+    if subset is None:
+        missing_subsets = []
+        for subset_index in range(10):
+            subset = f'subset{subset_index}'
+            if not os.path.exists(os.path.join(local_path, subset)):
+                missing_subsets.append(subset)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [
-            executor.submit(move_and_unzip_file, f'{subset}.zip') for subset in missing_subsets
-        ]
-        concurrent.futures.wait(futures)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [
+                executor.submit(move_and_unzip_file, f'{subset}.zip') for subset in missing_subsets
+            ]
+            concurrent.futures.wait(futures)
+    else:
+        move_and_unzip_file(f'subset{subset}.zip')
+
 
     move_file('annotations.csv')
     move_file('candidates.csv')
