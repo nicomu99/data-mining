@@ -8,6 +8,7 @@ from tqdm import tqdm
 from utils import fetch_data, delete_directory
 from dsets import LunaDataset
 from utils import logging
+from dsets import get_candidate_info_list
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -38,7 +39,7 @@ class LunaPrepCacheApp:
         self.cli_args = parser.parse_args(sys_argv)
         self.prep_dl = None
         self.num_subsets = 10
-        self.num_subset_batches = math.ceil(self.num_subsets / self.cli_args.subset_count) + 1
+        self.num_subset_batches = math.ceil(self.num_subsets / self.cli_args.subset_count)
         self.ignore_set = {}
 
     def main(self):
@@ -51,6 +52,9 @@ class LunaPrepCacheApp:
             subsets_to_fetch = [subset for subset in subsets_to_fetch if subset not in self.ignore_set]
 
             fetch_data(subsets_to_fetch)
+
+            # Force re-computation of candidate list
+            get_candidate_info_list.clear_cache()
 
             dataset = LunaDataset()
 
