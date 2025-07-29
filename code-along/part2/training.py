@@ -45,6 +45,7 @@ class LunaTrainingApp:
             default=32,
             type=int,
         )
+
         parser.add_argument('--epochs',
             help='Number of epochs to train for',
             default=1,
@@ -55,6 +56,13 @@ class LunaTrainingApp:
             '--tb-prefix',
             default='p2ch11',
             help="Data prefix to use for Tensorboard run. Defaults to chapter.",
+        )
+
+        parser.add_argument(
+            '--no-require-on-disk',
+            action='store_false',
+            help="Require to have the dataset on disk",
+            dest='require_on_disk'
         )
 
         parser.add_argument(
@@ -92,7 +100,8 @@ class LunaTrainingApp:
     def init_train_dataloader(self):
         train_ds = LunaDataset(
             val_stride = 10,
-            is_val_set = False
+            is_val_set = False,
+            require_on_disk=self.cli_args.require_on_disk
         )
 
         batch_size = self.cli_args.batch_size
@@ -111,7 +120,8 @@ class LunaTrainingApp:
     def init_val_dataloader(self):
         val_ds = LunaDataset(
             val_stride=10,
-            is_val_set=True
+            is_val_set=True,
+            require_on_disk=self.cli_args.require_on_disk
         )
 
         batch_size = self.cli_args.batch_size
