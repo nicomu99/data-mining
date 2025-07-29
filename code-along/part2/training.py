@@ -138,6 +138,7 @@ class LunaTrainingApp:
         return val_dl
 
     def init_tensorboard_writers(self):
+        log.info(f'Initializing tensorboard writers.')
         if self.train_writer is None:
             log_dir = os.path.join('runs', self.cli_args.tb_prefix, self.time_str)
 
