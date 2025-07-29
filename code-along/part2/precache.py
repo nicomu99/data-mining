@@ -40,7 +40,7 @@ class LunaPrepCacheApp:
         self.prep_dl = None
         self.num_subsets = 10
         self.num_subset_batches = math.ceil(self.num_subsets / self.cli_args.subset_count)
-        self.ignore_set = {}
+        self.ignore_set = set()
 
     def main(self):
         log.info(f'Starting {type(self).__name__}, {self.cli_args}')
@@ -50,11 +50,13 @@ class LunaPrepCacheApp:
             max_subset_index = min(self.num_subsets, (subset_batch + 1) * self.cli_args.subset_count)
             subsets_to_fetch = list(range(min_subset_index, max_subset_index))
             subsets_to_fetch = [subset for subset in subsets_to_fetch if subset not in self.ignore_set]
+            if len(subsets_to_fetch) < 1:
+                continue
 
             fetch_data(subsets_to_fetch)
 
             # Force re-computation of candidate list
-            get_candidate_info_list.clear_cache()
+            get_candidate_info_list.cache_clear()
 
             dataset = LunaDataset()
 

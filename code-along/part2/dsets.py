@@ -151,8 +151,8 @@ def get_ct_raw_candidate(series_uid, center_xyz, width_irc):
 
 
 class LunaDataset(Dataset):
-    def __init__(self, val_stride = 0, is_val_set = None, series_uid = None):
-        self.candidate_info_list = copy.copy(get_candidate_info_list())
+    def __init__(self, val_stride = 0, is_val_set = None, series_uid = None, require_on_disk = True):
+        self.candidate_info_list = copy.copy(get_candidate_info_list(require_on_disk))
 
         # If series uid is passed, we only get candidates from that scan
         if series_uid:
@@ -170,10 +170,11 @@ class LunaDataset(Dataset):
             del self.candidate_info_list[::val_stride]
             assert self.candidate_info_list
 
-        log.info("{!r}: {} {} samples".format(
+        log.info("{!r}: {} {} samples {}".format(
             self,
             len(self.candidate_info_list),
             "validation" if is_val_set else "training",
+            require_on_disk
         ))
 
     def __len__(self):
