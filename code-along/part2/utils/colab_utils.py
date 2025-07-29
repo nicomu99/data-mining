@@ -39,13 +39,16 @@ def move_and_unzip_file(file_name):
     os.remove(local_zip_file)
 
 def _execute_subset_load(subset_list, num_workers=None):
+    log.info(f'Loading subsets {subset_list}')
     subset_list = [subset for subset in subset_list if not os.path.exists(os.path.join(local_path, subset))]
     num_workers = len(subset_list) if num_workers is None else num_workers
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-        futures = [
-            executor.submit(move_and_unzip_file, f'{subset}.zip') for subset in subset_list
-        ]
-        concurrent.futures.wait(futures)
+    if len(subset_list) > 0:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = [
+                executor.submit(move_and_unzip_file, f'{subset}.zip') for subset in subset_list
+            ]
+            concurrent.futures.wait(futures)
+    log.info(f'Finished loading subset list')
 
 
 def fetch_data(subset=None):

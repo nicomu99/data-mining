@@ -141,8 +141,8 @@ class LunaTrainingApp:
     def main(self):
         log.info(f'Starting {type(self).__name__}, {self.cli_args}')
 
-        if get_mode() == 'colab':
-            fetch_data()
+        # if get_mode() == 'colab':
+        #    fetch_data()
 
         train_dl = self.init_train_dataloader()
         val_dl = self.init_val_dataloader()
