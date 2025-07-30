@@ -11,12 +11,9 @@ import torch.nn as nn
 from torch.optim import SGD
 from torch.utils.data import DataLoader
 
-from utils import enumerate_with_estimate
 from utils import logging
 from dsets import LunaDataset
 from model import LunaModel
-from utils import get_mode
-from utils import fetch_data
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
