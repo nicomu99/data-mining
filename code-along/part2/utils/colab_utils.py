@@ -59,10 +59,11 @@ def fetch_data(subset=None):
         # Get all subsets
         missing_subsets = [f'subset{subset_index}' for subset_index in range(10)]
         _execute_subset_load(missing_subsets)
-    elif len(subset) > 1:
-        # Get all subsets in list in parallel
-        subset_list = [f'subset{subset_index}' for subset_index in subset]
-        _execute_subset_load(subset_list)
+    elif hasattr(subset, '__len__'):
+        if len(subset) > 0:
+            # Get all subsets in list in parallel
+            subset_list = [f'subset{subset_index}' for subset_index in subset]
+            _execute_subset_load(subset_list)
     else:
         move_and_unzip_file(f'subset{subset}.zip')
 
