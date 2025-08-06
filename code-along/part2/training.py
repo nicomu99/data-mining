@@ -247,8 +247,15 @@ class LunaTrainingApp:
         neg_count = int(neg_label_mask.sum())
         pos_count = int(pos_label_mask.sum())
 
+        # True negatives: Instances that are predicted as non-nodule and are actually non-nodule
         neg_correct = int((neg_label_mask & neg_pred_mask).sum())
-        pos_correct = int((pos_label_mask & pos_pred_mask).sum())
+        # True positives: Instances that are predicted as nodules and are actually nodules
+        true_pos_count = pos_correct = int((pos_label_mask & pos_pred_mask).sum())
+
+        # Number of instances that are counted as nodules, but are actually non-nodule
+        false_pos_count = neg_count - neg_correct
+        # Number of instances that are counted as non-nodules, but are actually nodules
+        false_neg_count = pos_count - pos_correct
 
         metrics_dict = {
             'loss/all': metrics[METRICS_LOSS_INDEX].mean(),
@@ -259,15 +266,35 @@ class LunaTrainingApp:
             'correct/pos': pos_correct / np.float32(pos_count) * 100
         }
 
+        # Precision: Only classify as true if really sure, minimize the number of false positives
+        # How many predicted positives are actually positives
+        precision = metrics_dict['pr/precision'] = true_pos_count / np.float32(true_pos_count + false_pos_count)
+
+        # Recall: Maximize the number of interesting events, minimize the number of false negatives
+        # How many of the actual positives where classified as positive
+        recall = metrics_dict['pr/recall'] = true_pos_count / np.float32(true_pos_count + false_neg_count)
+
+        # F1 Score: ranges between 0 and 1, with 1 being perfect
+        metrics_dict['pr/f1_score'] = 2 * (precision / recall) / (precision + recall)
+
+        # Log losses and correct classifications
         log.info(
             f'E{epoch_index} {mode_str:8} {metrics_dict["loss/all"]:.4f} loss, {metrics_dict["correct/all"]:-5.1f}%'
         )
 
+        # Log precision, recall and f1 score
+        log.info(
+            f'E{epoch_index} {mode_str:8} {metrics_dict["pr/precision"]} precision, ' +
+            f'{metrics_dict["pr/recall"]} recall, {metrics_dict["pr/f1_score"]} f1 score'
+        )
+
+        # Log number of correctly classified negatives
         log.info(
             f'E{epoch_index} {mode_str + "_neg":8} {metrics_dict["loss/neg"]:.4f} loss ' +
             f'{metrics_dict["correct/neg"]:-5.1f}% correct ({neg_correct:} of {neg_count:})'
         )
 
+        # Log number of correctly classified positives
         log.info(
             f'E{epoch_index} {mode_str + "_pos":8} {metrics_dict["loss/pos"]:.4f} loss ' +
             f'{metrics_dict["correct/pos"]:-5.1f}% correct ({pos_correct:} of {pos_count:})'
