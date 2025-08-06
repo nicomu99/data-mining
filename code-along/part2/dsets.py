@@ -4,6 +4,7 @@ import csv
 import functools
 import copy
 import random
+import math
 
 from collections import namedtuple
 
@@ -17,6 +18,7 @@ from utils import get_data_root
 
 import torch
 import torch.cuda
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 
 log = logging.getLogger(__name__)
@@ -149,6 +151,63 @@ def get_ct_raw_candidate(series_uid, center_xyz, width_irc):
     ct = get_ct(series_uid)
     ct_chunk, center_irc = ct.get_raw_candidate(center_xyz, width_irc)
     return ct_chunk, center_irc
+
+def get_ct_augmented_candidate(augmentation_dict, series_uid, center_xyz, width_irc, use_cache=True):
+    if use_cache:
+        ct_chunk, center_irc = get_ct_raw_candidate(series_uid, center_xyz, width_irc)
+    else:
+        ct = get_ct(series_uid)
+        ct_chunk, center_irc = ct.get_raw_candidate(center_xyz, width_irc)
+    ct_t = torch.tensor(ct_chunk).unsqueeze(0).unsqueeze(0).to(torch.float32)
+
+    transform_t = torch.eye(4)
+    for i in range(3):
+        if 'flip' in augmentation_dict:
+            if random.random() > 0.5:
+                transform_t[i, i] *= -1
+
+        if 'offset' in augmentation_dict:
+            offset_float = augmentation_dict['offset']
+            random_float = (random.random() * 2 - 1)
+            transform_t[i, 3] = offset_float * random_float
+
+        if 'scale' in augmentation_dict:
+            scale_float = augmentation_dict['scale']
+            random_float = (random.random() * 2 - 1)
+            transform_t *= 1.0 + scale_float * random_float
+
+    if 'rotate' in augmentation_dict:
+        angle_rad = random.random() * math.pi * 2
+        s = math.sin(angle_rad)
+        c = math.cos(angle_rad)
+        rotation_t = torch.tensor([
+            [c, -s, 0, 0],
+            [s, c, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]
+        ])
+        transform_t @= rotation_t
+
+    affine_t = F.affine_grid(
+        transform_t[:3].unsqueeze(0).to(torch.float32),
+        list(ct_t.size()),
+        align_corners=False,
+    )
+
+    augmented_chunk = F.grid_sample(
+        ct_t,
+        affine_t,
+        padding_mode='border',
+        align_corners=False
+    ).to('cpu')
+
+    if 'noise' in augmentation_dict:
+        noise_t = torch.randn_like(augmented_chunk)
+        noise_t *= augmentation_dict['noise']
+
+        augmented_chunk += noise_t
+
+    return augmented_chunk[0], center_irc
 
 
 class LunaDataset(Dataset):
