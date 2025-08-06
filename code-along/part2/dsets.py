@@ -3,6 +3,7 @@ import glob
 import csv
 import functools
 import copy
+import random
 
 from collections import namedtuple
 
@@ -151,7 +152,15 @@ def get_ct_raw_candidate(series_uid, center_xyz, width_irc):
 
 
 class LunaDataset(Dataset):
-    def __init__(self, val_stride = 0, is_val_set = None, series_uid = None, require_on_disk = True):
+    def __init__(
+            self,
+            val_stride = 0,
+            is_val_set = None,
+            series_uid = None,
+            ratio_int = None,
+            require_on_disk = True
+    ):
+        self.ratio_int = ratio_int
         self.candidate_info_list = copy.copy(get_candidate_info_list(require_on_disk))
 
         # If series uid is passed, we only get candidates from that scan
@@ -170,6 +179,13 @@ class LunaDataset(Dataset):
             del self.candidate_info_list[::val_stride]
             assert self.candidate_info_list
 
+        self.negative_list = [
+            nt for nt in self.candidate_info_list if not nt.isNodule_bool
+        ]
+        self.positive_list = [
+            pt for pt in self.candidate_info_list if pt.isNodule_bool
+        ]
+
         log.info("{!r}: {} {} samples {}".format(
             self,
             len(self.candidate_info_list),
@@ -177,8 +193,16 @@ class LunaDataset(Dataset):
             require_on_disk
         ))
 
+    def shuffle_samples(self):
+        if self.ratio_int:
+            random.shuffle(self.negative_list)
+            random.shuffle(self.positive_list)
+
     def __len__(self):
-        return len(self.candidate_info_list)
+        if self.ratio_int:
+            return 200000
+        else:
+            return len(self.candidate_info_list)
 
     def __getitem__(self, index):
         """
@@ -186,7 +210,19 @@ class LunaDataset(Dataset):
         :param index: The index of the candidate we want to fetch.
         :return: Tuple with candidate chunk, one-hot encoded label, series uid and center of chunk.
         """
-        candidate_info_tup = self.candidate_info_list[index]
+        if self.ratio_int:
+            pos_index = index // (self.ratio_int + 1)
+
+            # E.g. if ratio int = 2: Every third index will be positive
+            if index % (self.ratio_int + 1):
+                neg_index = index - 1 - pos_index
+                neg_index %= len(self.negative_list)
+                candidate_info_tup = self.negative_list[neg_index]
+            else:
+                pos_index %= len(self.positive_list)    # We run out of positive samples before all iterations finished
+                candidate_info_tup = self.positive_list[pos_index]
+        else:
+            candidate_info_tup = self.candidate_info_list[index]
         width_irc = (32, 48, 48)
 
         candidate_a, center_irc = get_ct_raw_candidate(

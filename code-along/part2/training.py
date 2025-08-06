@@ -63,6 +63,13 @@ class LunaTrainingApp:
         )
 
         parser.add_argument(
+            '--balanced',
+            help="Balance the training data to half positive, half negative.",
+            action='store_true',
+            default=False
+        )
+
+        parser.add_argument(
             'comment',
             help="Comment suffix for Tensorboard run.",
             nargs='?',
@@ -98,6 +105,7 @@ class LunaTrainingApp:
         train_ds = LunaDataset(
             val_stride = 10,
             is_val_set = False,
+            ratio_int= int(self.cli_args.balanced),
             require_on_disk=self.cli_args.require_on_disk
         )
 
