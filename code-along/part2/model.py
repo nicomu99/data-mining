@@ -1,27 +1,6 @@
-import math
+import torch
 import torch.nn as nn
 
-class LunaBlock(nn.Module):
-    def __init__(self, in_channels, conv_channels):
-        super().__init__()
-
-        self.conv1 = nn.Conv3d(
-            in_channels, conv_channels, kernel_size=3, padding=1, bias=True
-        )
-        self.relu1 = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv3d(
-            conv_channels, conv_channels, kernel_size=3, padding=1, bias=True
-        )
-        self.relu2 = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool3d(2, 2)
-
-    def forward(self, input_batch):
-        out = self.conv1(input_batch)
-        out = self.relu1(out)
-        out = self.conv2(out)
-        out = self.relu2(out)
-
-        return self.maxpool(out)
 
 class LunaModel(nn.Module):
     def __init__(self, in_channels=1, conv_channels=8):
@@ -61,9 +40,32 @@ class LunaModel(nn.Module):
 
     def _init_weights(self):
         for m in self.modules():
-            if type(m) in {nn.Linear, nn.Conv3d, nn.Conv2d, nn.ConvTranspose2d, nn.ConvTranspose3d}:
-                nn.init.kaiming_normal_(m.weight.data, a=0, mode='fan_out', nonlinearity='relu')
+            if isinstance(m, (nn.Linear, nn.Conv3d, nn.Conv2d, nn.ConvTranspose2d, nn.ConvTranspose3d)  ):
+                with torch.no_grad():
+                    nn.init.kaiming_normal_(m.weight, a=0, mode='fan_out', nonlinearity='relu')
                 if m.bias is not None:
-                    fan_in, fan_out = nn.init._calculate_fan_in_and_fan_out(m.weight.data)
-                    bound = 1 / math.sqrt(fan_out)
-                    nn.init.normal_(m.bias, -bound, bound)
+                    with torch.no_grad():
+                        nn.init.zeros_(m.bias)
+
+
+class LunaBlock(nn.Module):
+    def __init__(self, in_channels, conv_channels):
+        super().__init__()
+
+        self.conv1 = nn.Conv3d(
+            in_channels, conv_channels, kernel_size=3, padding=1, bias=True
+        )
+        self.relu1 = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv3d(
+            conv_channels, conv_channels, kernel_size=3, padding=1, bias=True
+        )
+        self.relu2 = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool3d(2, 2)
+
+    def forward(self, input_batch):
+        out = self.conv1(input_batch)
+        out = self.relu1(out)
+        out = self.conv2(out)
+        out = self.relu2(out)
+
+        return self.maxpool(out)
