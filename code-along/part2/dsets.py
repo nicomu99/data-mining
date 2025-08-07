@@ -158,26 +158,29 @@ def get_ct_augmented_candidate(augmentation_dict, series_uid, center_xyz, width_
     else:
         ct = get_ct(series_uid)
         ct_chunk, center_irc = ct.get_raw_candidate(center_xyz, width_irc)
-    ct_t = torch.tensor(ct_chunk).unsqueeze(0).unsqueeze(0).to(torch.float32)
+    ct_t = torch.tensor(ct_chunk).unsqueeze(0).unsqueeze(0).to(torch.float32)   # Add batch and channel dim
 
     transform_t = torch.eye(4)
     for i in range(3):
         if 'flip' in augmentation_dict:
+            # Flip each dimension randomly
             if random.random() > 0.5:
-                transform_t[i, i] *= -1
+                transform_t[i, i] *= -1     # If t[i, i] = -1 -> mirror
 
         if 'offset' in augmentation_dict:
-            offset_float = augmentation_dict['offset']
-            random_float = (random.random() * 2 - 1)
+            # Add offset: Makes the model more robust to off-center nodules
+            offset_float = augmentation_dict['offset']  # Controls the impact in %: E.g. 0.2 -> 20% of image size
+            random_float = (random.random() * 2 - 1)    # Random float between -1 and 1
             transform_t[i, 3] = offset_float * random_float
 
         if 'scale' in augmentation_dict:
+            # Add scaling: Zoom in or out
             scale_float = augmentation_dict['scale']
-            random_float = (random.random() * 2 - 1)
+            random_float = (random.random() * 2 - 1)    # Again -1 and 1: If > 0 zoom in
             transform_t *= 1.0 + scale_float * random_float
 
     if 'rotate' in augmentation_dict:
-        angle_rad = random.random() * math.pi * 2
+        angle_rad = random.random() * math.pi * 2       # Random angle between 0 and 360
         s = math.sin(angle_rad)
         c = math.cos(angle_rad)
         rotation_t = torch.tensor([
@@ -186,22 +189,29 @@ def get_ct_augmented_candidate(augmentation_dict, series_uid, center_xyz, width_
             [0, 0, 1, 0],
             [0, 0, 0, 1]
         ])
-        transform_t @= rotation_t
+        transform_t @= rotation_t   # Apply the transformation
 
+    # Construct a map of coordinates that carries out the transformation of the ct scan
     affine_t = F.affine_grid(
+        # Affine gird expects 3x4 for 3D images
+        # [:3]: Pick first three rows, shape (3, 4)
+        # .unsqueeze(0): add num samples dimension (in this case 1), shape (1, 3, 4)
         transform_t[:3].unsqueeze(0).to(torch.float32),
         list(ct_t.size()),
         align_corners=False,
     )
 
+    # Carry out the transformation by pulling voxel values from the original ct scan and re-placing them
     augmented_chunk = F.grid_sample(
         ct_t,
-        affine_t,
-        padding_mode='border',
+        affine_t,               # Specifies the sampling pixel location normalized by input spatial dims
+        padding_mode='border',  # Border values are used for out of bounds grid locations
         align_corners=False
     ).to('cpu')
 
     if 'noise' in augmentation_dict:
+        # Add random noise
+        # Random tensor of same shape as input and random values between 0 and 1 from std. normal dist.
         noise_t = torch.randn_like(augmented_chunk)
         noise_t *= augmentation_dict['noise']
 
@@ -217,10 +227,23 @@ class LunaDataset(Dataset):
             is_val_set = None,
             series_uid = None,
             ratio_int = None,
+            augmentation_dict = None,
+            candidate_info_list = None,
             require_on_disk = True
     ):
+        # Controls the ratio between positive and negative samples
+        # E.g. ratio_int = 2: 2 negative samples, 1 positive
+        # Also, if used, the dataset size is capped at 200_000 samples
         self.ratio_int = ratio_int
-        self.candidate_info_list = copy.copy(get_candidate_info_list(require_on_disk))
+        self.augmentation_dict = augmentation_dict
+        self.require_on_disk = require_on_disk
+
+        if candidate_info_list:
+            self.candidate_info_list = copy.copy(candidate_info_list)
+            self.use_cache = False
+        else:
+            self.candidate_info_list = copy.copy(get_candidate_info_list(self.require_on_disk))
+            self.use_cache = True
 
         # If series uid is passed, we only get candidates from that scan
         if series_uid:
@@ -238,6 +261,7 @@ class LunaDataset(Dataset):
             del self.candidate_info_list[::val_stride]
             assert self.candidate_info_list
 
+        # Save true and false samples in separate lists to control the ratio between them during training
         self.negative_list = [
             nt for nt in self.candidate_info_list if not nt.isNodule_bool
         ]
@@ -259,7 +283,7 @@ class LunaDataset(Dataset):
 
     def __len__(self):
         if self.ratio_int:
-            return 200000
+            return 200_000
         else:
             return len(self.candidate_info_list)
 
@@ -275,7 +299,7 @@ class LunaDataset(Dataset):
             # E.g. if ratio int = 2: Every third index will be positive
             if index % (self.ratio_int + 1):
                 neg_index = index - 1 - pos_index
-                neg_index %= len(self.negative_list)
+                neg_index %= len(self.negative_list)    # If index > number of negative samples -> Restart from top
                 candidate_info_tup = self.negative_list[neg_index]
             else:
                 pos_index %= len(self.positive_list)    # We run out of positive samples before all iterations finished
@@ -284,15 +308,30 @@ class LunaDataset(Dataset):
             candidate_info_tup = self.candidate_info_list[index]
         width_irc = (32, 48, 48)
 
-        candidate_a, center_irc = get_ct_raw_candidate(
-            candidate_info_tup.series_uid,
-            candidate_info_tup.center_xyz,
-            width_irc
-        )
-
-        candidate_t = torch.from_numpy(candidate_a)
-        candidate_t = candidate_t.to(torch.float32)
-        candidate_t = candidate_t.unsqueeze(0)  # Add channel dimension
+        if self.augmentation_dict:
+            candidate_t, center_irc = get_ct_augmented_candidate(
+                self.augmentation_dict,
+                candidate_info_tup.series_uid,
+                candidate_info_tup.center_xyz,
+                width_irc,
+                self.use_cache,
+            )
+        elif self.use_cache:
+            candidate_a, center_irc = get_ct_raw_candidate(
+                candidate_info_tup.series_uid,
+                candidate_info_tup.center_xyz,
+                width_irc,
+            )
+            candidate_t = torch.from_numpy(candidate_a).to(torch.float32)
+            candidate_t = candidate_t.unsqueeze(0)
+        else:
+            ct = get_ct(candidate_info_tup.series_uid)
+            candidate_a, center_irc = ct.get_raw_candidate(
+                candidate_info_tup.center_xyz,
+                width_irc,
+            )
+            candidate_t = torch.from_numpy(candidate_a).to(torch.float32)
+            candidate_t = candidate_t.unsqueeze(0)
 
         # Classification tensor for CrossEntropy
         pos_t = torch.tensor([

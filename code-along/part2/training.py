@@ -70,6 +70,48 @@ class LunaTrainingApp:
         )
 
         parser.add_argument(
+            '--augmented',
+            help="Augment the training data.",
+            action='store_true',
+            default=False,
+        )
+
+        parser.add_argument(
+            '--augment-flip',
+            help="Augment the training data by randomly flipping the data left-right, up-down, and front-back.",
+            action='store_true',
+            default=False,
+        )
+
+        parser.add_argument(
+            '--augment-offset',
+            help="Augment the training data by randomly offsetting the data slightly along the X and Y axes.",
+            action='store_true',
+            default=False,
+        )
+
+        parser.add_argument(
+            '--augment-scale',
+            help="Augment the training data by randomly increasing or decreasing the size of the candidate.",
+            action='store_true',
+            default=False,
+        )
+
+        parser.add_argument(
+            '--augment-rotate',
+            help="Augment the training data by randomly rotating the data around the head-foot axis.",
+            action='store_true',
+            default=False,
+        )
+
+        parser.add_argument(
+            '--augment-noise',
+            help="Augment the training data by randomly adding noise to the data.",
+            action='store_true',
+            default=False,
+        )
+
+        parser.add_argument(
             'comment',
             help="Comment suffix for Tensorboard run.",
             nargs='?',
@@ -82,6 +124,18 @@ class LunaTrainingApp:
         self.train_writer = None
         self.eval_writer = None
         self.total_training_samples_count = 0
+
+        self.augmentation_dict = {}
+        if self.cli_args.augmented or self.cli_args.augment_flip:
+            self.augmentation_dict['flip'] = True
+        if self.cli_args.augmented or self.cli_args.augment_offset:
+            self.augmentation_dict['offset'] = 0.1
+        if self.cli_args.augmented or self.cli_args.augment_scale:
+            self.augmentation_dict['scale'] = 0.2
+        if self.cli_args.augmented or self.cli_args.augment_rotate:
+            self.augmentation_dict['rotate'] = True
+        if self.cli_args.augmented or self.cli_args.augment_noise:
+            self.augmentation_dict['noise'] = 25.0
 
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device('cuda' if self.use_cuda else 'cpu')
@@ -105,7 +159,8 @@ class LunaTrainingApp:
         train_ds = LunaDataset(
             val_stride = 10,
             is_val_set = False,
-            ratio_int= int(self.cli_args.balanced),
+            ratio_int = int(self.cli_args.balanced),
+            augmentation_dict = self.augmentation_dict,
             require_on_disk=self.cli_args.require_on_disk
         )
 
