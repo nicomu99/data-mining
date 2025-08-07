@@ -128,8 +128,7 @@ class LunaTrainingApp:
         self.cli_args = parser.parse_args(sys_argv)
         self.time_str = datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S')
 
-        self.train_writer = None
-        self.eval_writer = None
+        self.writer = None
         self.total_training_samples_count = 0
 
         self.augmentation_dict = {}
@@ -206,15 +205,12 @@ class LunaTrainingApp:
 
         return val_dl
 
-    def init_tensorboard_writers(self):
-        log.info(f'Initializing tensorboard writers.')
-        if self.train_writer is None:
+    def init_tensorboard_writer(self):
+        log.info(f'Initializing tensorboard writer.')
+        if self.writer is None:
             log_dir = os.path.join('runs', self.cli_args.tb_prefix, self.time_str)
 
-            self.train_writer = SummaryWriter(
-                log_dir=log_dir + '-train_cls-' + self.cli_args.comment
-            )
-            self.eval_writer = SummaryWriter(
+            self.writer = SummaryWriter(
                 log_dir=log_dir + '-train_cls-' + self.cli_args.comment
             )
 
@@ -239,9 +235,8 @@ class LunaTrainingApp:
             val_metrics = self.eval(epoch, val_dl)
             self.log_metrics(epoch, 'eval', val_metrics)
 
-        if hasattr(self, 'train_writer'):
-            self.train_writer.close()
-            self.eval_writer.close()
+        if hasattr(self, 'writer'):
+            self.writer.close()
 
     def train(self, epoch, dataloader):
         self.model.train()
@@ -330,59 +325,58 @@ class LunaTrainingApp:
         false_neg_count = pos_count - pos_correct
 
         metrics_dict = {
-            'loss/all': metrics[METRICS_LOSS_INDEX].mean(),
-            'loss/neg': metrics[METRICS_LOSS_INDEX, neg_label_mask].mean(),
-            'loss/pos': metrics[METRICS_LOSS_INDEX, pos_label_mask].mean(),
-            'correct/all': (pos_correct + neg_correct) / np.float32(metrics.shape[1]) * 100,
-            'correct/neg': neg_correct / np.float32(neg_count) * 100,
-            'correct/pos': pos_correct / np.float32(pos_count) * 100
+            f'{mode_str}/loss/all': metrics[METRICS_LOSS_INDEX].mean(),
+            f'{mode_str}/loss/neg': metrics[METRICS_LOSS_INDEX, neg_label_mask].mean(),
+            f'{mode_str}/loss/pos': metrics[METRICS_LOSS_INDEX, pos_label_mask].mean(),
+            f'{mode_str}/correct/all': (pos_correct + neg_correct) / np.float32(metrics.shape[1]) * 100,
+            f'{mode_str}/correct/neg': neg_correct / np.float32(neg_count) * 100,
+            f'{mode_str}/correct/pos': pos_correct / np.float32(pos_count) * 100
         }
 
         # Precision: Only classify as true if really sure, minimize the number of false positives
         # How many predicted positives are actually positives
         pos_pred_count = np.float32(true_pos_count + false_pos_count)
-        precision = metrics_dict['pr/precision'] = true_pos_count / pos_pred_count if pos_pred_count > 0 else 0.0
+        precision = metrics_dict[f'{mode_str}/pr/precision'] = true_pos_count / pos_pred_count if pos_pred_count > 0 else 0.0
 
         # Recall: Maximize the number of interesting events, minimize the number of false negatives
         # How many of the actual positives where classified as positive
         act_pos_count = np.float32(true_pos_count + false_neg_count)
-        recall = metrics_dict['pr/recall'] = true_pos_count / act_pos_count if act_pos_count > 0 else 0.0
+        recall = metrics_dict[f'{mode_str}/pr/recall'] = true_pos_count / act_pos_count if act_pos_count > 0 else 0.0
 
         # F1 Score: ranges between 0 and 1, with 1 being perfect
         denom = (precision + recall)
-        metrics_dict['pr/f1_score'] = 2 * (precision * recall) / denom if denom > 0 else 0.0
+        metrics_dict[f'{mode_str}/pr/f1_score'] = 2 * (precision * recall) / denom if denom > 0 else 0.0
 
         # Log losses and correct classifications
         log.info(
-            f'E{epoch_index} {mode_str:8} {metrics_dict["loss/all"]:.4f} loss, {metrics_dict["correct/all"]:-5.1f}%'
+            f'E{epoch_index} {mode_str:8} {metrics_dict[f"{mode_str}/loss/all"]:.4f} loss, {metrics_dict[f"{mode_str}/correct/all"]:-5.1f}%'
         )
 
         # Log precision, recall and f1 score
         log.info(
-            f'E{epoch_index} {mode_str:8} {metrics_dict["pr/precision"]:.4f} precision, ' +
-            f'{metrics_dict["pr/recall"]:.4f} recall, {metrics_dict["pr/f1_score"]:.4f} f1 score'
+            f'E{epoch_index} {mode_str:8} {metrics_dict[f"{mode_str}/pr/precision"]:.4f} precision, ' +
+            f'{metrics_dict[f"{mode_str}/pr/recall"]:.4f} recall, {metrics_dict[f"{mode_str}/pr/f1_score"]:.4f} f1 score'
         )
 
         # Log number of correctly classified negatives
         log.info(
-            f'E{epoch_index} {mode_str + "_neg":8} {metrics_dict["loss/neg"]:.4f} loss ' +
-            f'{metrics_dict["correct/neg"]:-5.1f}% correct ({neg_correct:} of {neg_count:})'
+            f'E{epoch_index} {mode_str + "_neg":8} {metrics_dict[f"{mode_str}/loss/neg"]:.4f} loss ' +
+            f'{metrics_dict[f"{mode_str}/correct/neg"]:-5.1f}% correct ({neg_correct:} of {neg_count:})'
         )
 
         # Log number of correctly classified positives
         log.info(
-            f'E{epoch_index} {mode_str + "_pos":8} {metrics_dict["loss/pos"]:.4f} loss ' +
-            f'{metrics_dict["correct/pos"]:-5.1f}% correct ({pos_correct:} of {pos_count:})'
+            f'E{epoch_index} {mode_str + "_pos":8} {metrics_dict[f"{mode_str}/loss/pos"]:.4f} loss ' +
+            f'{metrics_dict[f"{mode_str}/correct/pos"]:-5.1f}% correct ({pos_correct:} of {pos_count:})'
         )
 
-        self.init_tensorboard_writers()
-        writer = getattr(self, mode_str + '_writer')
+        self.init_tensorboard_writer()
 
         for key, value in metrics_dict.items():
-            writer.add_scalar(key, value, self.total_training_samples_count)
+            self.writer.add_scalar(key, value, self.total_training_samples_count)
 
-        writer.add_pr_curve(
-            'pr',
+        self.writer.add_pr_curve(
+            f'{mode_str}/pr',
             metrics[METRICS_LABEL_INDEX],
             metrics[METRICS_PRED_INDEX],
             self.total_training_samples_count,
@@ -394,15 +388,15 @@ class LunaTrainingApp:
         pos_hist_mask = pos_label_mask & (metrics[METRICS_PRED_INDEX] < 0.99)
 
         if neg_hist_mask.any():
-            writer.add_histogram(
-                'is_neg',
+            self.writer.add_histogram(
+                f'{mode_str}/is_neg',
                 metrics[METRICS_PRED_INDEX, neg_hist_mask],
                 self.total_training_samples_count,
                 bins=bins,
             )
         if pos_hist_mask.any():
-            writer.add_histogram(
-                'is_pos',
+            self.writer.add_histogram(
+                f'{mode_str}/is_pos',
                 metrics[METRICS_PRED_INDEX, pos_hist_mask],
                 self.total_training_samples_count,
                 bins=bins,
