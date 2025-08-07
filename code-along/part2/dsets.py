@@ -34,7 +34,7 @@ CandidateInfoTuple = namedtuple(
 )
 
 @functools.lru_cache(1)     # Caches the most recent call with same argument, i.e. the return value is not recomputed
-def get_candidate_info_list(require_on_disk=True):
+def get_candidate_info_list(require_on_disk=True, reverse=True):
     # Mhd is a header file for image metadata
     mhd_list = glob.glob(os.path.join(BASE_PATH, 'data/subset*/*.mhd'))      # Get all files with ending .mhd
     present_on_disk_set = {os.path.split(p)[-1][:-4] for p in mhd_list}     # Extracts the seriesuid from path name
@@ -89,7 +89,7 @@ def get_candidate_info_list(require_on_disk=True):
     #   Is nodule comes first (True > 0)
     #   Then diameter size
     #   ...
-    candidate_info_list.sort(reverse=True)
+    candidate_info_list.sort(reverse=reverse)
     return candidate_info_list
 
 class Ct:
@@ -229,6 +229,7 @@ class LunaDataset(Dataset):
             ratio_int = None,
             augmentation_dict = None,
             candidate_info_list = None,
+            reverse=True,
             require_on_disk = True
     ):
         # Controls the ratio between positive and negative samples
@@ -242,7 +243,7 @@ class LunaDataset(Dataset):
             self.candidate_info_list = copy.copy(candidate_info_list)
             self.use_cache = False
         else:
-            self.candidate_info_list = copy.copy(get_candidate_info_list(self.require_on_disk))
+            self.candidate_info_list = copy.copy(get_candidate_info_list(self.require_on_disk, reverse=reverse))
             self.use_cache = True
 
         # If series uid is passed, we only get candidates from that scan

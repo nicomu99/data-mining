@@ -112,6 +112,13 @@ class LunaTrainingApp:
         )
 
         parser.add_argument(
+            '--no-reverse',
+            help="Reverse the dataset before training",
+            action='store_false',
+            default=True
+        )
+
+        parser.add_argument(
             'comment',
             help="Comment suffix for Tensorboard run.",
             nargs='?',
@@ -161,6 +168,7 @@ class LunaTrainingApp:
             is_val_set = False,
             ratio_int = int(self.cli_args.balanced),
             augmentation_dict = self.augmentation_dict,
+            reverse = self.cli_args.no_reverse,
             require_on_disk=self.cli_args.require_on_disk
         )
 
@@ -181,6 +189,7 @@ class LunaTrainingApp:
         val_ds = LunaDataset(
             val_stride=10,
             is_val_set=True,
+            reverse=self.cli_args.no_reverse,
             require_on_disk=self.cli_args.require_on_disk
         )
 
