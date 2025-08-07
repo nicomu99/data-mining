@@ -331,14 +331,17 @@ class LunaTrainingApp:
 
         # Precision: Only classify as true if really sure, minimize the number of false positives
         # How many predicted positives are actually positives
-        precision = metrics_dict['pr/precision'] = true_pos_count / np.float32(true_pos_count + false_pos_count)
+        pos_pred_count = np.float32(true_pos_count + false_pos_count)
+        precision = metrics_dict['pr/precision'] = true_pos_count / pos_pred_count if pos_pred_count > 0 else 0.0
 
         # Recall: Maximize the number of interesting events, minimize the number of false negatives
         # How many of the actual positives where classified as positive
-        recall = metrics_dict['pr/recall'] = true_pos_count / np.float32(true_pos_count + false_neg_count)
+        act_pos_count = np.float32(true_pos_count + false_neg_count)
+        recall = metrics_dict['pr/recall'] = true_pos_count / act_pos_count if act_pos_count > 0 else 0.0
 
         # F1 Score: ranges between 0 and 1, with 1 being perfect
-        metrics_dict['pr/f1_score'] = 2 * (precision / recall) / (precision + recall)
+        denom = (precision + recall)
+        metrics_dict['pr/f1_score'] = 2 * (precision * recall) / denom if denom > 0 else 0.0
 
         # Log losses and correct classifications
         log.info(
@@ -347,8 +350,8 @@ class LunaTrainingApp:
 
         # Log precision, recall and f1 score
         log.info(
-            f'E{epoch_index} {mode_str:8} {metrics_dict["pr/precision"]} precision, ' +
-            f'{metrics_dict["pr/recall"]} recall, {metrics_dict["pr/f1_score"]} f1 score'
+            f'E{epoch_index} {mode_str:8} {metrics_dict["pr/precision"]:.4f} precision, ' +
+            f'{metrics_dict["pr/recall"]:.4f} recall, {metrics_dict["pr/f1_score"]:.4f} f1 score'
         )
 
         # Log number of correctly classified negatives
