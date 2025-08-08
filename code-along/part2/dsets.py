@@ -152,13 +152,26 @@ def get_ct_raw_candidate(series_uid, center_xyz, width_irc):
     ct_chunk, center_irc = ct.get_raw_candidate(center_xyz, width_irc)
     return ct_chunk, center_irc
 
-def get_ct_augmented_candidate(augmentation_dict, series_uid, center_xyz, width_irc, use_cache=True):
+def load_chunk(series_uid, center_xyz, width_irc, use_cache=True):
     if use_cache:
         ct_chunk, center_irc = get_ct_raw_candidate(series_uid, center_xyz, width_irc)
     else:
         ct = get_ct(series_uid)
         ct_chunk, center_irc = ct.get_raw_candidate(center_xyz, width_irc)
-    ct_t = torch.tensor(ct_chunk).unsqueeze(0).unsqueeze(0).to(torch.float32)   # Add batch and channel dim
+    return torch.tensor(ct_chunk).unsqueeze(0).unsqueeze(0).to(torch.float32), center_irc   # Add batch and channel dim
+
+def get_ct_augmented_candidate(
+        augmentation_dict, series_uid, center_xyz, width_irc,
+        mixup_series_uid, mixup_center_xyz, use_cache=True
+):
+    ct_t, center_irc = load_chunk(series_uid, center_xyz, width_irc, use_cache)
+
+    if 'mixup' in augmentation_dict and mixup_series_uid is not None:
+        mixup_t, _ = load_chunk(mixup_series_uid, mixup_center_xyz, width_irc, use_cache)
+
+        lambda_val = random.betavariate(0.4, 0.4)
+        ct_t = lambda_val * ct_t + (1 - lambda_val) * mixup_t
+
 
     transform_t = torch.eye(4)
     for i in range(3):
@@ -299,6 +312,7 @@ class LunaDataset(Dataset):
         :param index: The index of the candidate we want to fetch.
         :return: Tuple with candidate chunk, one-hot encoded label, series uid and center of chunk.
         """
+        mixup_info_tup = None
         if self.ratio_int:
             pos_index = index // (self.ratio_int + 1)
 
@@ -310,6 +324,10 @@ class LunaDataset(Dataset):
             else:
                 pos_index %= len(self.positive_list)    # We run out of positive samples before all iterations finished
                 candidate_info_tup = self.positive_list[pos_index]
+
+                # For mixup data augmentation
+                random_pos_sample_index = random.randint(0, len(self.positive_list) - 1)
+                mixup_info_tup = self.positive_list[random_pos_sample_index]
         else:
             candidate_info_tup = self.candidate_info_list[index]
         width_irc = (32, 48, 48)
@@ -320,6 +338,8 @@ class LunaDataset(Dataset):
                 candidate_info_tup.series_uid,
                 candidate_info_tup.center_xyz,
                 width_irc,
+                mixup_info_tup.series_uid if mixup_info_tup is not None else None,
+                mixup_info_tup.center_xyz if mixup_info_tup is not None else None,
                 self.use_cache,
             )
         elif self.use_cache:

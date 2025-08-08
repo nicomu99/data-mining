@@ -119,6 +119,13 @@ class LunaTrainingApp:
         )
 
         parser.add_argument(
+            '--augment-mixup',
+            help="Augment the training data by mixing two random positive samples.",
+            action='store_true',
+            default=False,
+        )
+
+        parser.add_argument(
             '--no-reverse',
             help="Reverse the dataset before training",
             action='store_false',
@@ -150,6 +157,8 @@ class LunaTrainingApp:
         if self.cli_args.augmented or self.cli_args.augment_noise:
             self.augmentation_dict['noise'] = self.cli_args.augment_noise \
                 if self.cli_args.augment_noise != 0 else 25
+        if self.cli_args.augment_mixup:
+            self.augmentation_dict['mixup'] = True
 
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device('cuda' if self.use_cuda else 'cpu')
