@@ -63,10 +63,10 @@ class LunaTrainingApp:
         )
 
         parser.add_argument(
-            '--balanced',
-            help="Balance the training data to half positive, half negative.",
-            action='store_true',
-            default=False
+            '--balance',
+            help="Ratio to use between the positive and negative samples. If 0, no balancing is used.",
+            default=2,
+            type=int
         )
 
         parser.add_argument(
@@ -119,6 +119,13 @@ class LunaTrainingApp:
         )
 
         parser.add_argument(
+            '--dynamic-ratio',
+            help="Control whether the dataset ratio gets updated between epochs",
+            action='store_true',
+            default=False
+        )
+
+        parser.add_argument(
             'comment',
             help="Comment suffix for Tensorboard run.",
             nargs='?',
@@ -165,7 +172,7 @@ class LunaTrainingApp:
         train_ds = LunaDataset(
             val_stride = 10,
             is_val_set = False,
-            ratio_int = int(self.cli_args.balanced),
+            ratio_int = self.cli_args.balance,
             augmentation_dict = self.augmentation_dict,
             reverse = self.cli_args.no_reverse,
             require_on_disk=self.cli_args.require_on_disk
@@ -240,6 +247,7 @@ class LunaTrainingApp:
 
     def train(self, epoch, dataloader):
         self.model.train()
+        dataloader.dataset.epoch_reset(self.cli_args.dynamic_ratio)
 
         train_metrics = torch.zeros(
             METRICS_SIZE,

@@ -277,6 +277,11 @@ class LunaDataset(Dataset):
             require_on_disk
         ))
 
+    def epoch_reset(self, update_ratio):
+        self.shuffle_samples()
+        if self.ratio_int and update_ratio:
+            self.ratio_int += 1
+
     def shuffle_samples(self):
         if self.ratio_int:
             random.shuffle(self.negative_list)
