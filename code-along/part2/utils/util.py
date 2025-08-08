@@ -3,6 +3,9 @@ import datetime
 import collections
 import numpy as np
 
+import torch
+import torch.nn as nn
+
 from .logconf import logging
 
 log = logging.getLogger(__name__)
@@ -102,3 +105,12 @@ def enumerate_with_estimate(iterable, desc_str, start_index=0, print_index=4, ba
         iter_len,
         str(datetime.datetime.now()).rsplit('.', 1)[0],
     ))
+
+def init_model_weights(model):
+    for m in model.modules():
+        if isinstance(m, (nn.Linear, nn.Conv3d, nn.Conv2d, nn.ConvTranspose2d, nn.ConvTranspose3d)):
+            with torch.no_grad():
+                nn.init.kaiming_normal_(m.weight, a=0, mode='fan_out', nonlinearity='relu')
+            if m.bias is not None:
+                with torch.no_grad():
+                    nn.init.zeros_(m.bias)

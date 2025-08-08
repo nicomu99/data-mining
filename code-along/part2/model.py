@@ -1,5 +1,6 @@
-import torch
 import torch.nn as nn
+
+from utils import init_model_weights
 
 
 class LunaModel(nn.Module):
@@ -19,7 +20,7 @@ class LunaModel(nn.Module):
         self.head_linear = nn.Linear(1152, 2)
         self.head_softmax = nn.Softmax(dim=1)
 
-        self._init_weights()
+        init_model_weights(self)
 
     def forward(self, input_batch):
         out = self.tail_batchnorm(input_batch)
@@ -37,15 +38,6 @@ class LunaModel(nn.Module):
         out = self.head_linear(out)
 
         return out, self.head_softmax(out)
-
-    def _init_weights(self):
-        for m in self.modules():
-            if isinstance(m, (nn.Linear, nn.Conv3d, nn.Conv2d, nn.ConvTranspose2d, nn.ConvTranspose3d)  ):
-                with torch.no_grad():
-                    nn.init.kaiming_normal_(m.weight, a=0, mode='fan_out', nonlinearity='relu')
-                if m.bias is not None:
-                    with torch.no_grad():
-                        nn.init.zeros_(m.bias)
 
 
 class LunaBlock(nn.Module):
