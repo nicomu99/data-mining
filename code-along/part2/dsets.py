@@ -94,12 +94,13 @@ def get_candidate_info_list(require_on_disk=True, reverse=True):
 
 class Ct:
     # Class for holding each individual ct scan
-    def __init__(self, series_uid):
+    def __init__(self, series_uid, clip=True):
         mhd_path = glob.glob(os.path.join(BASE_PATH, f'data/subset*/{series_uid}.mhd'))[0]
 
         ct_mhd = Sitk.ReadImage(mhd_path)       # Implicitly consumes the .raw file in addition to .mhd
         ct_a = np.array(Sitk.GetArrayFromImage(ct_mhd), dtype=np.float32)   # Shape (slice, height, width)
-        ct_a.clip(-1000, 1000, ct_a)        # All values below -1000 get bounded to -1000, all above to 1000
+        if clip:
+            ct_a.clip(-1000, 1000, ct_a)        # All values below -1000 get bounded to -1000, all above to 1000
 
         self.series_uid = series_uid
         self.hu_a = ct_a
@@ -107,13 +108,14 @@ class Ct:
         self.origin_xyz = XyzTuple(*ct_mhd.GetOrigin())
         self.vx_size_xyz = XyzTuple(*ct_mhd.GetSpacing())
         self.direction_a = np.array(ct_mhd.GetDirection()).reshape(3, 3)
+        self.slice_list = None
 
     def get_raw_candidate(self, center_xyz, width_irc):
         # Takes the center expressed in xyz and voxel width
         # Returns cubic chunk of CT and center as IRC coordinates of a candidate nodule
         center_irc = xyz2irc(center_xyz, self.origin_xyz, self.vx_size_xyz, self.direction_a)
 
-        slice_list = []
+        self.slice_list = []
         for axis, center_val in enumerate(center_irc):
             start_ndx = int(round(center_val - width_irc[axis] / 2))
             end_ndx = int(start_ndx + width_irc[axis])
@@ -131,9 +133,9 @@ class Ct:
                 end_ndx = self.hu_a.shape[axis]
                 start_ndx = int(self.hu_a.shape[axis] - width_irc[axis])
 
-            slice_list.append(slice(start_ndx, end_ndx))
+            self.slice_list.append(slice(start_ndx, end_ndx))
 
-        ct_chunk = self.hu_a[tuple(slice_list)]     # Contains the chunk with candidate nodule
+        ct_chunk = self.hu_a[tuple(self.slice_list)]     # Contains the chunk with candidate nodule
         return ct_chunk, center_irc
 
 # Cache the most recent ct in memory
