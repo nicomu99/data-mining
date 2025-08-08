@@ -1,14 +1,20 @@
+import torch
 import torch.nn as nn
 
 from utils import init_model_weights
 
 
 class LunaModel(nn.Module):
-    def __init__(self, in_channels=1, conv_channels=8):
+    def __init__(self, in_channels=1, conv_channels=8, norm='batch'):
         super().__init__()
 
         # Tail
-        self.tail_batchnorm = nn.BatchNorm3d(1)
+        if norm == 'fixed':
+            self.norm = self.normalize
+        elif norm == 'sqrt':
+            self.norm = self.square_root_normalization
+        else:
+            self.norm = nn.BatchNorm3d(1)
 
         # Backbone
         self.block1 = LunaBlock(in_channels, conv_channels)
@@ -22,8 +28,18 @@ class LunaModel(nn.Module):
 
         init_model_weights(self)
 
+    @staticmethod
+    def normalize(batch, mean=-603, std=396):
+        # Mean and std were calculated from the train split of the dataset
+        return (batch - mean) / std
+
+    @staticmethod
+    def square_root_normalization(batch, clip_min=-1000, clip_max=1000):
+        batch_shifted = batch - clip_min
+        return torch.sqrt(batch_shifted) / ((clip_max - clip_min) ** 0.5)
+
     def forward(self, input_batch):
-        out = self.tail_batchnorm(input_batch)
+        out = self.norm(input_batch)
 
         out = self.block1(out)
         out = self.block2(out)

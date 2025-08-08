@@ -133,6 +133,14 @@ class LunaTrainingApp:
         )
 
         parser.add_argument(
+            '--norm',
+            help="Normalization type to use. Options: batch, fixed or sqrt.",
+            default='batch',
+            choices=['batch', 'fixed', 'sqrt'],
+            type=str
+        )
+
+        parser.add_argument(
             'comment',
             help="Comment suffix for Tensorboard run.",
             nargs='?',
@@ -167,7 +175,7 @@ class LunaTrainingApp:
         self.optimizer = self.init_optimizer()
 
     def init_model(self):
-        model = LunaModel()
+        model = LunaModel(norm=self.cli_args.norm)
         if self.use_cuda:
             log.info(f'Using CUDA; {torch.cuda.device_count()} devices.')
             if torch.cuda.device_count() > 1:
