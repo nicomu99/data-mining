@@ -70,6 +70,13 @@ class LunaTrainingApp:
         )
 
         parser.add_argument(
+            '--dynamic-ratio',
+            help="Control whether the dataset ratio gets updated between epochs",
+            action='store_true',
+            default=False
+        )
+
+        parser.add_argument(
             '--augmented',
             help="Augment the training data.",
             action='store_true',
@@ -119,13 +126,6 @@ class LunaTrainingApp:
         )
 
         parser.add_argument(
-            '--dynamic-ratio',
-            help="Control whether the dataset ratio gets updated between epochs",
-            action='store_true',
-            default=False
-        )
-
-        parser.add_argument(
             'comment',
             help="Comment suffix for Tensorboard run.",
             nargs='?',
@@ -149,7 +149,7 @@ class LunaTrainingApp:
             self.augmentation_dict['rotate'] = True
         if self.cli_args.augmented or self.cli_args.augment_noise:
             self.augmentation_dict['noise'] = self.cli_args.augment_noise \
-                if self.cli_args.augment_noise is not 0 else 25
+                if self.cli_args.augment_noise != 0 else 25
 
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device('cuda' if self.use_cuda else 'cpu')
