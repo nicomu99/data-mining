@@ -106,9 +106,9 @@ class LunaTrainingApp:
 
         parser.add_argument(
             '--augment-noise',
-            help="Augment the training data by randomly adding noise to the data.",
-            action='store_true',
-            default=False,
+            help="Control the baseline noise value.",
+            default=25,
+            type=int,
         )
 
         parser.add_argument(
@@ -148,7 +148,8 @@ class LunaTrainingApp:
         if self.cli_args.augmented or self.cli_args.augment_rotate:
             self.augmentation_dict['rotate'] = True
         if self.cli_args.augmented or self.cli_args.augment_noise:
-            self.augmentation_dict['noise'] = 25.0
+            self.augmentation_dict['noise'] = self.cli_args.augment_noise \
+                if self.cli_args.augment_noise is not 0 else 25
 
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device('cuda' if self.use_cuda else 'cpu')
