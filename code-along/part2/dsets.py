@@ -30,7 +30,7 @@ BASE_PATH = get_data_root()
 
 CandidateInfoTuple = namedtuple(
     'CandidateInfoTuple',
-    'isNodule_bool, diameter_mm, series_uid, center_xyz'
+    'isNodule_bool, hasAnnotation_bool, isMal_bool, diameter_mm, series_uid, center_xyz'
 )
 
 @functools.lru_cache(1)     # Caches the most recent call with same argument, i.e. the return value is not recomputed
@@ -40,19 +40,21 @@ def get_candidate_info_list(require_on_disk=True, reverse=True):
     present_on_disk_set = {os.path.split(p)[-1][:-4] for p in mhd_list}     # Extracts the seriesuid from path name
 
     # Retrieve center and diameter from annotations.csv
-    diameter_dict = {}
-    annotation_file = os.path.join(BASE_PATH, 'data/annotations.csv')
+    candidate_info_list = []
+    annotation_file = os.path.join(BASE_PATH, 'data/annotations_with_malignancy.csv')
     with open(annotation_file, 'r') as f:
         for row in list(csv.reader(f))[1:]:     # Skip header row
             series_uid = row[0]
             annotation_center_xyz = tuple([float(x) for x in row[1:4]])
             annotation_diameter_mm = float(row[4])
+            is_mal = False if row[5] == 'False' else True
 
-            diameter_dict.setdefault(series_uid, []).append(
-                (annotation_center_xyz, annotation_diameter_mm)
+            candidate_info_list.append(
+                CandidateInfoTuple(
+                    True, True, is_mal, annotation_diameter_mm, series_uid, annotation_center_xyz
+                )
             )
 
-    candidate_info_list = []
     candidate_file = os.path.join(BASE_PATH, 'data/candidates.csv')
     with open(candidate_file, 'r') as f:
         for row in list(csv.reader(f))[1:]:     # Again skip header
@@ -65,25 +67,12 @@ def get_candidate_info_list(require_on_disk=True, reverse=True):
             is_nodule_bool = bool(int(row[4]))
             candidate_center_xyz = tuple([float(x) for x in row[1:4]])
 
-            # Diameter information in annotations.csv and candidates.csv is not uniform
-            candidate_diameter_mm = 0.0
-            for annotation_tup in diameter_dict.get(series_uid, []):
-                annotation_center_xyz, annotation_diameter_mm = annotation_tup
-                for i in range(3):
-                    # Make sure candidate centers are not too far apart between the two files
-                    delta_mm = abs(candidate_center_xyz[i] - annotation_center_xyz[i])
-                    if delta_mm > annotation_diameter_mm / 4:   # / 2 to get radius and again by / 2 to limit distance
-                        break
-                else:   # Executes only if for completes without hitting break
-                    # If centers are too far apart, the candidate has diameter 0.0
-                    candidate_diameter_mm = annotation_diameter_mm
-                    break
-
-            candidate_info_list.append(
-                CandidateInfoTuple(
-                    is_nodule_bool, candidate_diameter_mm, series_uid, candidate_center_xyz
+            if not is_nodule_bool:
+                candidate_info_list.append(
+                    CandidateInfoTuple(
+                        False, False, False, 0.0, series_uid, candidate_center_xyz
+                    )
                 )
-            )
 
     # Sort is according to CandidateInfoTuple content order:
     #   Is nodule comes first (True > 0)
