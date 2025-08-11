@@ -1,3 +1,4 @@
+import sys
 import os
 import argparse
 import datetime
@@ -27,7 +28,7 @@ METRICS_SIZE        = 3
 class LunaTrainingApp:
     def __init__(self, sys_argv=None):
         if sys_argv is None:
-            sys_argv = sys_argv[1:]
+            sys_argv = sys.argv[1:]
 
         parser = argparse.ArgumentParser()
         parser.add_argument(
@@ -427,7 +428,6 @@ class LunaTrainingApp:
                 self.total_training_samples_count,
                 bins=bins,
             )
-
 
 if __name__ == '__main__':
     LunaTrainingApp().main()
