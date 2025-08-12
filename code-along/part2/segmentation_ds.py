@@ -198,7 +198,7 @@ class TrainingLuna2dSegmentationDataset(Luna2dSegmentationDataset):
 
     @staticmethod
     def getitem_training_crop(candidate_info_tup):
-        # Creates a random 32 x 32 crop of the 96 x 96 area around the nodule center
+        # Creates a random 64 x 64 crop of the 96 x 96 area around the nodule center
         ct_a, pos_a, center_irc = get_ct_raw_candidate_with_pos_mask(
             candidate_info_tup.series_uid,
             candidate_info_tup.center_xyz,
