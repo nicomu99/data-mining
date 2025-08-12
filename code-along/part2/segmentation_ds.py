@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 from dsets import Ct, get_candidate_info_list
 from utils import xyz2irc, get_cache
 
-raw_cache = get_cache('part2ch13_raw')
+raw_cache = get_cache('raw')
 
 @functools.lru_cache(1)
 def get_candidate_info_dict(require_on_disk_bool=True):

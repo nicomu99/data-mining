@@ -24,7 +24,7 @@ from torch.utils.data import Dataset
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
-raw_cache = get_cache('part2ch10_raw')
+raw_cache = get_cache('raw')
 
 BASE_PATH = get_data_root()
 
@@ -48,6 +48,9 @@ def get_candidate_info_list(require_on_disk=True, reverse=True):
             annotation_center_xyz = tuple([float(x) for x in row[1:4]])
             annotation_diameter_mm = float(row[4])
             is_mal = False if row[5] == 'False' else True
+
+            if series_uid not in present_on_disk_set and require_on_disk:
+                continue
 
             candidate_info_list.append(
                 CandidateInfoTuple(

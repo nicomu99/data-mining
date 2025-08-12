@@ -67,7 +67,7 @@ def fetch_data(subset=None):
     else:
         move_and_unzip_file(f'subset{subset}.zip')
 
-
+    move_file('annotations_with_malignancy.csv')
     move_file('annotations.csv')
     move_file('candidates.csv')
 

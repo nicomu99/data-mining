@@ -5,9 +5,8 @@ import sys
 from torch.utils.data import DataLoader
 
 from tqdm import tqdm
-from utils import fetch_data, delete_directory
+from utils import fetch_data, delete_directory, logging, get_mode
 from dsets import LunaDataset
-from utils import logging
 from dsets import get_candidate_info_list
 from segmentation_ds import get_candidate_info_dict, PrecacheLunaDataset
 
@@ -61,7 +60,8 @@ class LunaPrepCacheApp:
             if len(subsets_to_fetch) < 1:
                 continue
 
-            fetch_data(subsets_to_fetch)
+            if get_mode() == 'colab':
+                fetch_data(subsets_to_fetch)
 
             # Force re-computation of candidate list
             get_candidate_info_list.cache_clear()
