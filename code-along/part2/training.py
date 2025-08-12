@@ -2,6 +2,8 @@ import sys
 import os
 import argparse
 import datetime
+from abc import ABC, abstractmethod
+
 import numpy as np
 from tqdm import tqdm
 
@@ -25,7 +27,7 @@ METRICS_PRED_INDEX  = 1
 METRICS_LOSS_INDEX  = 2
 METRICS_SIZE        = 3
 
-class LunaTrainingApp:
+class TrainingApp(ABC):
     def __init__(self, sys_argv=None):
         if sys_argv is None:
             sys_argv = sys.argv[1:]
@@ -152,6 +154,7 @@ class LunaTrainingApp:
         self.time_str = datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S')
 
         self.writer = None
+        self.init_tensorboard_writer()
         self.total_training_samples_count = 0
 
         self.augmentation_dict = {}
@@ -172,8 +175,63 @@ class LunaTrainingApp:
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device('cuda' if self.use_cuda else 'cpu')
 
-        self.model = self.init_model()
+    def init_tensorboard_writer(self):
+        log.info(f'Initializing tensorboard writer.')
+        if self.writer is None:
+            log_dir = os.path.join('runs', self.cli_args.tb_prefix, self.time_str)
+
+            self.writer = SummaryWriter(
+                log_dir=log_dir + '-train_cls-' + self.cli_args.comment
+            )
+
+    @abstractmethod
+    def compute_batch_loss(self, batch_index, batch_tuple, batch_size, metrics):
+        pass
+
+    def train(self, epoch, model, optimizer, dataloader, metrics_size):
+        model.train()
+        dataloader.dataset.epoch_reset(self.cli_args.dynamic_ratio)
+
+        train_metrics = torch.zeros(
+            metrics_size,
+            len(dataloader.dataset),
+            device=self.device
+        )
+
+        train_progress = tqdm(dataloader, desc=f'E{epoch} Training', total=len(dataloader))
+        for batch_index, batch_tuple in enumerate(train_progress):
+            optimizer.zero_grad()
+
+            train_loss = self.compute_batch_loss(batch_index, batch_tuple, dataloader.batch_size, train_metrics)
+
+            train_loss.backward()
+            optimizer.step()
+
+        self.total_training_samples_count += len(dataloader.dataset)
+        return train_metrics.to('cpu')
+
+    def eval(self, epoch, model, dataloader, metrics_size):
+        with torch.no_grad():
+            model.eval()
+
+            val_metrics = torch.zeros(
+                metrics_size,
+                len(dataloader.dataset),
+                device=self.device
+            )
+
+            val_progress = tqdm(dataloader, desc=f'E{epoch} Validation', total=len(dataloader))
+            for batch_index, batch_tuple in enumerate(val_progress):
+                self.compute_batch_loss(batch_index, batch_tuple, dataloader.batch_size, val_metrics)
+
+        return val_metrics.to('cpu')
+
+class LunaTrainingApp(TrainingApp):
+    def __init__(self, sys_argv=None):
+        super().__init__(sys_argv)
+
         self.optimizer = self.init_optimizer()
+        self.model = self.init_model()
 
     def init_model(self):
         model = LunaModel(norm=self.cli_args.norm)
@@ -231,15 +289,6 @@ class LunaTrainingApp:
 
         return val_dl
 
-    def init_tensorboard_writer(self):
-        log.info(f'Initializing tensorboard writer.')
-        if self.writer is None:
-            log_dir = os.path.join('runs', self.cli_args.tb_prefix, self.time_str)
-
-            self.writer = SummaryWriter(
-                log_dir=log_dir + '-train_cls-' + self.cli_args.comment
-            )
-
     def main(self):
         log.info(f'Starting {type(self).__name__}, {self.cli_args}')
 
@@ -255,59 +304,14 @@ class LunaTrainingApp:
                 f'batches of size {self.cli_args.batch_size}*{torch.cuda.device_count() if self.use_cuda else 1}'
             )
 
-            train_metrics = self.train(epoch, train_dl)
+            train_metrics = self.train(epoch, self.model, self.optimizer, train_dl, METRICS_SIZE)
             self.log_metrics(epoch, 'train', train_metrics)
 
-            val_metrics = self.eval(epoch, val_dl)
+            val_metrics = self.eval(epoch, self.model, val_dl, METRICS_SIZE)
             self.log_metrics(epoch, 'eval', val_metrics)
 
         if hasattr(self, 'writer'):
             self.writer.close()
-
-    def train(self, epoch, dataloader):
-        self.model.train()
-        dataloader.dataset.epoch_reset(self.cli_args.dynamic_ratio)
-
-        train_metrics = torch.zeros(
-            METRICS_SIZE,
-            len(dataloader.dataset),
-            device=self.device
-        )
-
-        train_progress = tqdm(dataloader, desc=f'E{epoch} Training', total=len(dataloader))
-        for batch_index, batch_tuple in enumerate(train_progress):
-            self.optimizer.zero_grad()
-
-            train_loss = self.compute_batch_loss(batch_index, batch_tuple, dataloader.batch_size, train_metrics)
-
-            train_loss.backward()
-            self.optimizer.step()
-
-            # # This is for adding the model graph to TensorBoard.
-            # if epoch == 1 and batch_index == 0:
-            #     with torch.no_grad():
-            #         model = LunaModel()
-            #         self.train_writer.add_graph(model, batch_tuple[0], verbose=True)
-            #         self.train_writer.close()
-
-        self.total_training_samples_count += len(dataloader.dataset)
-        return train_metrics.to('cpu')
-
-    def eval(self, epoch, dataloader):
-        with torch.no_grad():
-            self.model.eval()
-
-            val_metrics = torch.zeros(
-                METRICS_SIZE,
-                len(dataloader.dataset),
-                device=self.device
-            )
-
-            val_progress = tqdm(dataloader, desc=f'E{epoch} Validation', total=len(dataloader))
-            for batch_index, batch_tuple in enumerate(val_progress):
-                self.compute_batch_loss(batch_index, batch_tuple, dataloader.batch_size, val_metrics)
-
-        return val_metrics.to('cpu')
 
     def compute_batch_loss(self, batch_index, batch_tuple, batch_size, metrics):
         # log.debug(f'Calculating loss for batch {batch_index} on device {self.device}')
