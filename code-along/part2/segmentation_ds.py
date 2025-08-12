@@ -1,3 +1,4 @@
+import copy
 import random
 import functools
 
@@ -97,9 +98,11 @@ class SegmentationCt(Ct):
         pos_chunk = self.positive_mask[tuple(self.slice_list)]
         return ct_chunk, pos_chunk, center_irc
 
+
 @functools.lru_cache(1, typed=True)
 def get_segmentation_ct(series_uid):
     return SegmentationCt(series_uid)
+
 
 @raw_cache.memoize(typed=True)
 def get_ct_raw_candidate_with_pos_mask(series_uid, center_xyz, width_irc):
@@ -107,6 +110,7 @@ def get_ct_raw_candidate_with_pos_mask(series_uid, center_xyz, width_irc):
     ct_chunk, pos_chunk, center_irc = ct.get_raw_candidate(center_xyz, width_irc)
     ct_chunk.clip(-1000, 1000, ct_chunk)
     return ct_chunk, pos_chunk, center_irc
+
 
 @raw_cache.memoize(typed=True)
 def get_ct_sample_size(series_uid):
@@ -192,6 +196,15 @@ class TrainingLuna2dSegmentationDataset(Luna2dSegmentationDataset):
 
         self.ratio_int = 2
 
+    def epoch_reset(self, update_ratio):
+        self.shuffle_samples()
+        if self.ratio_int and update_ratio:
+            self.ratio_int += 1
+
+    def shuffle_samples(self):
+        random.shuffle(self.candidate_info_list)
+        random.shuffle(self.pos_list)
+
     def __len__(self):
         return 300_000
 
@@ -227,7 +240,7 @@ class PrecacheLunaDataset(Dataset):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.candidate_info_list = get_candidate_info_list()
+        self.candidate_info_list = copy.copy(get_candidate_info_list())
         self.pos_list = [nt for nt in self.candidate_info_list if nt.isNodule_bool]
 
         self.seen_set = set()
