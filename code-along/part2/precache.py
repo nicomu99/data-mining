@@ -9,6 +9,7 @@ from utils import fetch_data, delete_directory
 from dsets import LunaDataset
 from utils import logging
 from dsets import get_candidate_info_list
+from segmentation_ds import get_candidate_info_dict, PrecacheLunaDataset
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -35,6 +36,13 @@ class LunaPrepCacheApp:
             default=3,
             type=int,
         )
+        parser.add_argument('--dataset',
+            help='Dataset to load into cache',
+            default='luna',
+            choices=['luna', 'seg'],
+            type=str,
+        )
+
 
         self.cli_args = parser.parse_args(sys_argv)
         self.prep_dl = None
@@ -58,7 +66,11 @@ class LunaPrepCacheApp:
             # Force re-computation of candidate list
             get_candidate_info_list.cache_clear()
 
-            dataset = LunaDataset()
+            if self.cli_args.dataset == 'seg':
+                get_candidate_info_dict.cache_clear()
+                dataset = PrecacheLunaDataset()
+            else:
+                dataset = LunaDataset()
 
             self.prep_dl = DataLoader(
                 dataset,

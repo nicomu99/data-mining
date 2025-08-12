@@ -233,7 +233,7 @@ class LunaDataset(Dataset):
             ratio_int = None,
             augmentation_dict = None,
             candidate_info_list = None,
-            reverse=True,
+            reverse = True,
             require_on_disk = True
     ):
         # Controls the ratio between positive and negative samples

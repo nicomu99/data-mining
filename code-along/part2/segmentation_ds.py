@@ -23,6 +23,7 @@ def get_candidate_info_dict(require_on_disk_bool=True):
 
     return candidate_info_dict
 
+
 class SegmentationCt(Ct):
     def __init__(self, series_uid):
         super().__init__(series_uid, clip=False)
@@ -107,10 +108,11 @@ def get_ct_raw_candidate_with_pos_mask(series_uid, center_xyz, width_irc):
     ct_chunk.clip(-1000, 1000, ct_chunk)
     return ct_chunk, pos_chunk, center_irc
 
-@raw_cache.memoize(type=True)
+@raw_cache.memoize(typed=True)
 def get_ct_sample_size(series_uid):
     ct = SegmentationCt(series_uid)
     return int(ct.hu_a.shape[0]), ct.positive_indexes
+
 
 class Luna2dSegmentationDataset(Dataset):
     def __init__(self, val_stride=0, is_val_set=False, series_uid=None, context_slice_count=3, full_ct=False):
@@ -183,6 +185,7 @@ class Luna2dSegmentationDataset(Dataset):
 
         return ct_t, pos_t, ct.series_uid, slice_index
 
+
 class TrainingLuna2dSegmentationDataset(Luna2dSegmentationDataset):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -218,3 +221,29 @@ class TrainingLuna2dSegmentationDataset(Luna2dSegmentationDataset):
 
         slice_index = center_irc.index
         return ct_t, pos_t, candidate_info_tup.series_uid, slice_index
+
+
+class PrecacheLunaDataset(Dataset):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.candidate_info_list = get_candidate_info_list()
+        self.pos_list = [nt for nt in self.candidate_info_list if nt.isNodule_bool]
+
+        self.seen_set = set()
+        self.candidate_info_list.sort(key=lambda x: x.series_uid)
+
+    def __len__(self):
+        return len(self.candidate_info_list)
+
+    def __getitem__(self, ndx):
+        candidate_info_tup = self.candidate_info_list[ndx]
+        get_ct_raw_candidate_with_pos_mask(candidate_info_tup.series_uid, candidate_info_tup.center_xyz, (7, 96, 96))
+
+        series_uid = candidate_info_tup.series_uid
+        if series_uid not in self.seen_set:
+            self.seen_set.add(series_uid)
+
+            get_ct_sample_size(series_uid)
+
+        return 0, 1
