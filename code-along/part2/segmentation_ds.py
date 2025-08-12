@@ -12,6 +12,7 @@ raw_cache = get_cache('part2ch13_raw')
 
 @functools.lru_cache(1)
 def get_candidate_info_dict(require_on_disk_bool=True):
+    # Returns a dictionary with the series uid as key and list with each candidate nodule
     candidate_info_list = get_candidate_info_list(require_on_disk_bool)
 
     candidate_info_dict = {}
@@ -26,8 +27,10 @@ class SegmentationCt(Ct):
     def __init__(self, series_uid):
         super().__init__(series_uid, clip=False)
 
+        # List will all candidates of this specific CT scan instance
         candidate_info_list = get_candidate_info_dict()[self.series_uid]
 
+        # All candidates that actually are a nodule
         self.positive_info_list = [
             candidate_tup
             for candidate_tup in candidate_info_list
@@ -40,6 +43,7 @@ class SegmentationCt(Ct):
         self.positive_indexes = self.positive_mask.sum(axis=(1, 2)).nonzero()[0].tolist()
 
     def build_annotation_mask(self, positive_info_list, threshold_hu = -700):
+        # Create a 3D bounding box mask around the center of an actual nodule
         bounding_box_a = np.zeros_like(self.hu_a, dtype=np.bool)
 
         for candidate_info_tup in positive_info_list:
@@ -87,6 +91,7 @@ class SegmentationCt(Ct):
         return mask_a
 
     def get_raw_candidate(self, center_xyz, width_irc):
+        # Return the ct chunk
         ct_chunk, center_irc = super().get_raw_candidate(center_xyz, width_irc)
         pos_chunk = self.positive_mask[tuple(self.slice_list)]
         return ct_chunk, pos_chunk, center_irc
@@ -191,7 +196,9 @@ class TrainingLuna2dSegmentationDataset(Luna2dSegmentationDataset):
         candidate_info_tup = self.pos_list[index % len(self.pos_list)]
         return self.getitem_training_crop(candidate_info_tup)
 
-    def getitem_training_crop(self, candidate_info_tup):
+    @staticmethod
+    def getitem_training_crop(candidate_info_tup):
+        # Creates a random 32 x 32 crop of the 96 x 96 area around the nodule center
         ct_a, pos_a, center_irc = get_ct_raw_candidate_with_pos_mask(
             candidate_info_tup.series_uid,
             candidate_info_tup.center_xyz,
