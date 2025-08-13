@@ -16,6 +16,6 @@ def get_mode():
 
 def get_data_root():
     if _mode == 'colab':
-        return '/content/data/MyDrive/deep-learning-with-pytorch'
+        return '/content/drive/MyDrive/deep-learning-with-pytorch'
 
     return ''
