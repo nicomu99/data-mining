@@ -5,7 +5,6 @@ import hashlib
 import datetime
 
 import numpy as np
-from tqdm import tqdm
 
 import torch.cuda
 import torch.nn as nn
@@ -39,7 +38,7 @@ class SegmentationTrainingApp(TrainingApp):
     def init_model(self):
         segmentation_model = UNetWrapper(
             in_channels=7, n_classes=1, depth=3, wf=4,
-            padding=True, batch_norm=True, up_mode='conv'
+            padding=True, batch_norm=True, up_mode='upconv'
         )
 
         augmentation_model = SegmentationAugmentation(**self.augmentation_dict)
@@ -60,9 +59,10 @@ class SegmentationTrainingApp(TrainingApp):
 
     def init_train_dl(self):
         train_ds = TrainingLuna2dSegmentationDataset(
-            val_stride=10,
-            is_val_set=False,
-            context_slice_count=3
+            data_split='train',
+            ratios=(0.9, 0.1, 0),
+            context_slice_count=3,
+            require_on_disk = self.cli_args.require_on_disk
         )
 
         batch_size = self.cli_args.batch_size
@@ -79,9 +79,10 @@ class SegmentationTrainingApp(TrainingApp):
 
     def init_val_dl(self):
         val_ds = Luna2dSegmentationDataset(
-            val_stride=10,
-            is_val_set=True,
-            context_slice_count=3
+            data_split='eval',
+            ratios=(0.9, 0.1, 0),
+            context_slice_count=3,
+            require_on_disk=self.cli_args.require_on_disk
         )
 
         batch_size = self.cli_args.batch_size
@@ -113,7 +114,7 @@ class SegmentationTrainingApp(TrainingApp):
         inputs = inputs.to(self.device, non_blocking=True)
         labels = labels.to(self.device, non_blocking=True)
 
-        if self.segmentation_model.trainig and self.augmentation_dict:
+        if self.segmentation_model.training and self.augmentation_dict:
             inputs, labels = self.augmentation_model(inputs, labels)
 
         predictions = self.segmentation_model(inputs)

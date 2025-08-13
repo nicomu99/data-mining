@@ -1,3 +1,4 @@
+import math
 import copy
 import random
 import functools
@@ -7,7 +8,10 @@ import numpy as np
 from torch.utils.data import Dataset
 
 from dsets import Ct, get_candidate_info_list
-from utils import xyz2irc, get_cache
+from utils import xyz2irc, get_cache, logging
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
 raw_cache = get_cache('raw')
 
@@ -119,23 +123,61 @@ def get_ct_sample_size(series_uid):
 
 
 class Luna2dSegmentationDataset(Dataset):
-    def __init__(self, val_stride=0, is_val_set=False, series_uid=None, context_slice_count=3, full_ct=False):
+    def __init__(
+            self, data_split='train', ratios=(0.8, 0.1, 0.1),
+            series_uid=None, context_slice_count=3, full_ct=False, require_on_disk=True
+    ):
+        r_train, r_eval, r_test = ratios
         self.context_slice_count = context_slice_count
         self.full_ct = full_ct
 
         # Only contains series_uids
         if series_uid:
-            self.series_list = [series_uid]
+            temp_series_list = [series_uid]
         else:
-            self.series_list = sorted(get_candidate_info_dict().keys())
+            temp_series_list = sorted(get_candidate_info_dict(require_on_disk).keys())
 
-        if is_val_set:
-            assert val_stride > 0, val_stride
-            self.series_list = self.series_list[::val_stride]
+        if series_uid is None:
+            sample_count = len(temp_series_list)
+
+            n_train = math.floor(sample_count * r_train)
+            n_eval = math.floor(sample_count * r_eval)
+
+            s_train = temp_series_list[:n_train]
+            s_eval = temp_series_list[n_train:n_train + n_eval]
+            s_test = temp_series_list[n_train+n_eval:]
+
+            if data_split == 'train':
+                self.series_list = s_train
+            elif data_split == 'eval':
+                self.series_list = s_eval
+            elif data_split == 'test':
+                self.series_list = s_test
+
+            assert self.series_list, f'Dataset is empty'
+        else:
+            self.series_list = temp_series_list
+
+        if data_split == 'eval':
+            self.series_list = []
+            for i in range(len(temp_series_list)):
+                if i % 5 == 0 and i % 10 != 0:
+                    self.series_list.append(temp_series_list[i])
             assert self.series_list
-        elif val_stride > 0:
-            del self.series_list[::val_stride]
+        elif data_split == 'test':
+            self.series_list = []
+            for i in range(len(temp_series_list)):
+                if i % 5 != 0 and i % 10 == 0:
+                    self.series_list.append(temp_series_list[i])
             assert self.series_list
+        elif data_split == 'train':
+            self.series_list = []
+            for i in range(len(temp_series_list)):
+                if i % 5 != 0 and i % 10 != 0:
+                    self.series_list.append(temp_series_list[i])
+            assert self.series_list
+        else:
+            self.series_list = temp_series_list
 
         # Contains a tuple of (series_uid, slice_index) of candidates to check
         self.sample_list = []
@@ -155,7 +197,7 @@ class Luna2dSegmentationDataset(Dataset):
                     for slice_index in positive_indexes
                 ]
 
-        self.candidate_info_list = get_candidate_info_list()
+        self.candidate_info_list = get_candidate_info_list(require_on_disk)
         series_set = set(self.series_list)
 
         # Filter for series UIDs in our series list
@@ -167,6 +209,17 @@ class Luna2dSegmentationDataset(Dataset):
         self.pos_list = [
             nt for nt in self.candidate_info_list if nt.isNodule_bool
         ]
+
+        log.info('{}: {} {} series, {} slices, {} nodules'.format(
+            self,
+            len(self.series_list),
+            data_split,
+            len(self.sample_list),
+            len(self.pos_list)
+        ))
+
+    def __len__(self):
+        return len(self.sample_list)
 
     def __getitem__(self, index):
         series_uid, slice_index = self.sample_list[index % len(self.sample_list)]   # Wrap if we run out of samples
@@ -240,7 +293,7 @@ class PrecacheLunaDataset(Dataset):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.candidate_info_list = copy.copy(get_candidate_info_list())
+        self.candidate_info_list = copy.copy(get_candidate_info_list(kwargs['require_on_disk']))
         self.pos_list = [nt for nt in self.candidate_info_list if nt.isNodule_bool]
 
         self.seen_set = set()
