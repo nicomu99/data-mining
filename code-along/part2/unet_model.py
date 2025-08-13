@@ -10,6 +10,24 @@ from utils import logging, UNet, init_model_weights
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
+class AugmentWrapper(nn.Module):
+    def __init__(
+            self, in_channels=1, n_classes=2, depth=5, wf=6, padding=False, batch_norm=False, up_mode='upconv',
+            flip=None, offset=None, scale=None, rotate=None, noise=None
+    ):
+        super().__init__()
+
+        self.augmentation_model = SegmentationAugmentation(flip, offset, scale, rotate, noise)
+        self.segmentation_model = UNetWrapper(
+            in_channels=in_channels, n_classes=n_classes, depth=depth, wf=wf,
+            padding=padding, batch_norm=batch_norm, up_mode=up_mode
+        )
+
+    def forward(self, input_batch, labels, augment=False):
+        if augment:
+            input_batch = self.augmentation_model(input_batch, labels)
+        return self.segmentation_model(input_batch)
+
 class UNetWrapper(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
