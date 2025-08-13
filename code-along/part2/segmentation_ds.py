@@ -15,7 +15,7 @@ log.setLevel(logging.DEBUG)
 
 raw_cache = get_cache('raw')
 
-@functools.lru_cache(1)
+@functools.lru_cache(2, typed=True)
 def get_candidate_info_dict(require_on_disk_bool=True):
     # Returns a dictionary with the series uid as key and list with each candidate nodule
     candidate_info_list = get_candidate_info_list(require_on_disk_bool)
@@ -155,27 +155,6 @@ class Luna2dSegmentationDataset(Dataset):
                 self.series_list = s_test
 
             assert self.series_list, f'Dataset is empty'
-        else:
-            self.series_list = temp_series_list
-
-        if data_split == 'eval':
-            self.series_list = []
-            for i in range(len(temp_series_list)):
-                if i % 5 == 0 and i % 10 != 0:
-                    self.series_list.append(temp_series_list[i])
-            assert self.series_list
-        elif data_split == 'test':
-            self.series_list = []
-            for i in range(len(temp_series_list)):
-                if i % 5 != 0 and i % 10 == 0:
-                    self.series_list.append(temp_series_list[i])
-            assert self.series_list
-        elif data_split == 'train':
-            self.series_list = []
-            for i in range(len(temp_series_list)):
-                if i % 5 != 0 and i % 10 != 0:
-                    self.series_list.append(temp_series_list[i])
-            assert self.series_list
         else:
             self.series_list = temp_series_list
 

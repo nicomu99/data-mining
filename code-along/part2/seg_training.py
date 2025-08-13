@@ -81,8 +81,7 @@ class SegmentationTrainingApp(TrainingApp):
         val_ds = Luna2dSegmentationDataset(
             data_split='eval',
             ratios=(0.9, 0.1, 0),
-            context_slice_count=3,
-            require_on_disk=self.cli_args.require_on_disk
+            context_slice_count=3
         )
 
         batch_size = self.cli_args.batch_size
@@ -266,26 +265,20 @@ class SegmentationTrainingApp(TrainingApp):
 
         metrics_dict[f'{mode_str}/pr/f1_score'] = 2 * (precision * recall) / ((precision + recall) or 1)
 
-        log.info(("E{} {:8} "
-                 + "{loss/all:.4f} loss, "
-                 + "{" + f"{mode_str}" + "/pr/precision:.4f} precision, "
-                 + "{" + f"{mode_str}" + "/pr/recall:.4f} recall, "
-                 + "{" + f"{mode_str}" + "/pr/f1_score:.4f} f1 score"
-                  ).format(
-            epoch_index,
-            mode_str,
-            **metrics_dict,
-        ))
-        log.info(("E{} {:8} "
-                  + "{" + f"{mode_str}" + "/loss/all:.4f} loss, "
-                  + "{" + f"{mode_str}" + "/percent_all/tp:-5.1f}% tp, "
-                  + "{" + f"{mode_str}" + "/percent_all/fn:-5.1f}% fn, "
-                  "{" + f"{mode_str}" + "/{percent_all/fp:-9.1f}% fp"
-        ).format(
-            epoch_index,
-            mode_str + '_all',
-            **metrics_dict,
-        ))
+        log.info(
+            f"E{epoch_index} {mode_str:8} "
+            f"{metrics_dict[f'{mode_str}/loss/all']:.4f} loss, "
+            f"{metrics_dict[f'{mode_str}/pr/precision']:.4f} precision, "
+            f"{metrics_dict[f'{mode_str}/pr/recall']:.4f} recall, "
+            f"{metrics_dict[f'{mode_str}/pr/f1_score']:.4f} f1 score"
+        )
+        log.info(
+            f"E{epoch_index} {mode_str + '_all':8} "
+            f"{metrics_dict[f'{mode_str}/loss/all']:.4f} loss, "
+            f"{metrics_dict[f'{mode_str}/percent_all/tp']:-5.1f}% tp, "
+            f"{metrics_dict[f'{mode_str}/percent_all/fn']:-5.1f}% fn, "
+            f"{metrics_dict[f'{mode_str}/percent_all/fp']:-9.1f}% fp"
+        )
 
         self.init_tensorboard_writer()
 
