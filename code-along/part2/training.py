@@ -181,7 +181,7 @@ class TrainingApp(ABC):
             log_dir = os.path.join('runs', self.cli_args.tb_prefix, self.time_str)
 
             self.writer = SummaryWriter(
-                log_dir=log_dir + '-train_cls-' + self.cli_args.comment
+                log_dir=log_dir + '-train-' + self.cli_args.comment
             )
 
     @abstractmethod

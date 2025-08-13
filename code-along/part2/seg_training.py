@@ -12,7 +12,8 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader
 
 from training import TrainingApp
-from unet_model import UNetWrapper, SegmentationAugmentation
+# from unet_model import UNetWrapper, SegmentationAugmentation
+from unet_model import AugmentWrapper
 from segmentation_ds import get_segmentation_ct, TrainingLuna2dSegmentationDataset, Luna2dSegmentationDataset
 
 from utils import logging
@@ -31,31 +32,33 @@ class SegmentationTrainingApp(TrainingApp):
     def __init__(self, sys_argv=None):
         super().__init__(sys_argv)
 
-        self.segmentation_model, self.augmentation_model = self.init_model()
+        # self.segmentation_model, self.augmentation_model = self.init_model()
+        self.model = self.init_model()
         self.optimizer = self.init_optimizer()
         self.validation_cadence = 5
 
     def init_model(self):
-        segmentation_model = UNetWrapper(
+        model = AugmentWrapper(
             in_channels=7, n_classes=1, depth=3, wf=4,
-            padding=True, batch_norm=True, up_mode='upconv'
+            padding=True, batch_norm=True, up_mode='upconv',
+            **self.augmentation_dict
         )
 
-        augmentation_model = SegmentationAugmentation(**self.augmentation_dict)
+        # augmentation_model = SegmentationAugmentation(**self.augmentation_dict)
 
         if self.use_cuda:
             log.info(f'Using CUDA; {torch.cuda.device_count()} devices.')
 
             if torch.cuda.device_count() > 1:
-                segmentation_model = nn.DataParallel(segmentation_model)
-                augmentation_model = nn.DataParallel(augmentation_model)
-            segmentation_model = segmentation_model.to(self.device)
-            augmentation_model = augmentation_model.to(self.device)
+                model = nn.DataParallel(model)
+                # augmentation_model = nn.DataParallel(augmentation_model)
+            model = model.to(self.device)
+            # augmentation_model = augmentation_model.to(self.device)
 
-        return segmentation_model, augmentation_model
+        return model # segmentation_model, augmentation_model
 
     def init_optimizer(self):
-        return Adam(self.segmentation_model.parameters())
+        return Adam(self.model.parameters())
 
     def init_train_dl(self):
         train_ds = TrainingLuna2dSegmentationDataset(
@@ -81,7 +84,8 @@ class SegmentationTrainingApp(TrainingApp):
         val_ds = Luna2dSegmentationDataset(
             data_split='eval',
             ratios=(0.9, 0.1, 0),
-            context_slice_count=3
+            context_slice_count=3,
+            require_on_disk=self.cli_args.require_on_disk
         )
 
         batch_size = self.cli_args.batch_size
@@ -113,10 +117,10 @@ class SegmentationTrainingApp(TrainingApp):
         inputs = inputs.to(self.device, non_blocking=True)
         labels = labels.to(self.device, non_blocking=True)
 
-        if self.segmentation_model.training and self.augmentation_dict:
-            inputs, labels = self.augmentation_model(inputs, labels)
-
-        predictions = self.segmentation_model(inputs)
+        # if self.segmentation_model.training and self.augmentation_dict:
+        #    inputs, labels = self.augmentation_model(inputs, labels)
+        # predictions = self.segmentation_model(inputs)
+        predictions, labels = self.model(inputs, labels, self.model.training and self.augmentation_dict)
 
         dice_loss = self.dice_loss(predictions, labels)             # Loss for the whole sample
         fine_loss = self.dice_loss(predictions * labels, labels)    # Loss only for the pixels, where labels is true
@@ -158,11 +162,11 @@ class SegmentationTrainingApp(TrainingApp):
                 f'{len(train_dl)}/{len(val_dl)} batches of size {self.cli_args.batch_size} '
             )
 
-            train_metrics = self.train(epoch_index, self.segmentation_model, self.optimizer, train_dl, METRICS_SIZE)
+            train_metrics = self.train(epoch_index, self.model, self.optimizer, train_dl, METRICS_SIZE)
             self.log_metrics(epoch_index, 'train', train_metrics)
 
             if epoch_index == 1 or epoch_index % self.validation_cadence == 0:
-                val_metrics = self.eval(epoch_index, self.segmentation_model, val_dl, METRICS_SIZE)
+                val_metrics = self.eval(epoch_index, self.model, val_dl, METRICS_SIZE)
                 score = self.log_metrics(epoch_index, 'eval', val_metrics)
                 best_score = max(score, best_score)
 
@@ -176,7 +180,7 @@ class SegmentationTrainingApp(TrainingApp):
 
     def log_images(self, epoch_index, mode_str, dl):
         # Log 6 evenly spaced slices end-to-end to show the ground truth and our model's output
-        self.segmentation_model.eval()
+        self.model.eval()
 
         images = sorted(dl.dataset.series_list)[:12]
         for series_index, series_uid in enumerate(images):
@@ -192,8 +196,9 @@ class SegmentationTrainingApp(TrainingApp):
                 inputs = ct_t.to(self.device).unsqueeze(0)
                 labels = labels.to(self.device).unsqueeze(0)
 
-                predictions = self.segmentation_model(inputs)[0]
-                predictions = predictions.to('cpu').numpy()[0] > 0.5
+                predictions, labels = self.model(inputs, labels, False)
+                predictions = predictions[0]
+                predictions = predictions.to('cpu').detach().numpy()[0] > 0.5
                 labels = labels.to('cpu').numpy()[0][0] > 0.5
 
                 ct_t[:-1, :, :] /= 2000
@@ -298,7 +303,7 @@ class SegmentationTrainingApp(TrainingApp):
 
         os.makedirs(os.path.dirname(file_path), mode=0o755, exist_ok=True)
 
-        model = self.segmentation_model
+        model = self.model
         if isinstance(model, torch.nn.DataParallel):
             model = model.module
 

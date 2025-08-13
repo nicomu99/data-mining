@@ -25,8 +25,8 @@ class AugmentWrapper(nn.Module):
 
     def forward(self, input_batch, labels, augment=False):
         if augment:
-            input_batch = self.augmentation_model(input_batch, labels)
-        return self.segmentation_model(input_batch)
+            input_batch, labels = self.augmentation_model(input_batch, labels)
+        return self.segmentation_model(input_batch), labels
 
 class UNetWrapper(nn.Module):
     def __init__(self, **kwargs):
