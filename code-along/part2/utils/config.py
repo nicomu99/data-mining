@@ -15,7 +15,7 @@ def get_mode():
     return _mode
 
 def get_data_root():
-    if _mode is None:
-        raise RuntimeError("Config mode not set. Call set_mode('local') or set_mode('colab') first.")
+    if _mode == 'colab':
+        return '/content/data/MyDrive/deep-learning-with-pytorch'
 
     return ''

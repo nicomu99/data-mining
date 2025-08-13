@@ -36,13 +36,12 @@ CandidateInfoTuple = namedtuple(
 @functools.lru_cache(1)     # Caches the most recent call with same argument, i.e. the return value is not recomputed
 def get_candidate_info_list(require_on_disk=True, reverse=True):
     # Mhd is a header file for image metadata
-    mhd_list = glob.glob(os.path.join(BASE_PATH, 'data/subset*/*.mhd'))      # Get all files with ending .mhd
+    mhd_list = glob.glob('data/subset*/*.mhd')     # Get all files with ending .mhd
     present_on_disk_set = {os.path.split(p)[-1][:-4] for p in mhd_list}     # Extracts the seriesuid from path name
 
     # Retrieve center and diameter from annotations.csv
     candidate_info_list = []
-    annotation_file = os.path.join(BASE_PATH, 'data/annotations_with_malignancy.csv')
-    with open(annotation_file, 'r') as f:
+    with open('data/annotations_with_malignancy.csv', 'r') as f:
         for row in list(csv.reader(f))[1:]:     # Skip header row
             series_uid = row[0]
             annotation_center_xyz = tuple([float(x) for x in row[1:4]])
@@ -58,8 +57,7 @@ def get_candidate_info_list(require_on_disk=True, reverse=True):
                 )
             )
 
-    candidate_file = os.path.join(BASE_PATH, 'data/candidates.csv')
-    with open(candidate_file, 'r') as f:
+    with open('data/candidates.csv', 'r') as f:
         for row in list(csv.reader(f))[1:]:     # Again skip header
             series_uid = row[0]
 
