@@ -36,7 +36,7 @@ CandidateInfoTuple = namedtuple(
 @functools.lru_cache(1)     # Caches the most recent call with same argument, i.e. the return value is not recomputed
 def get_candidate_info_list(require_on_disk=True, reverse=True):
     # Mhd is a header file for image metadata
-    mhd_list = glob.glob('data/subset*/*.mhd')     # Get all files with ending .mhd
+    mhd_list = glob.glob(os.path.join(BASE_PATH, 'data/subset*/*.mhd'))     # Get all files with ending .mhd
     present_on_disk_set = {os.path.split(p)[-1][:-4] for p in mhd_list}     # Extracts the seriesuid from path name
 
     # Retrieve center and diameter from annotations.csv
