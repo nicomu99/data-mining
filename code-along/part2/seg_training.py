@@ -80,10 +80,10 @@ class SegmentationTrainingApp(TrainingApp):
         )
         return train_dl
 
-    def init_val_dl(self):
+    def init_eval_dl(self, split='eval'):
         val_ds = Luna2dSegmentationDataset(
-            data_split='eval',
-            ratios=(0.9, 0.1, 0),
+            data_split=split,
+            ratios=(0.8, 0.1, 0.1),
             context_slice_count=3,
             require_on_disk=self.cli_args.require_on_disk
         )
@@ -99,6 +99,7 @@ class SegmentationTrainingApp(TrainingApp):
             pin_memory=self.use_cuda
         )
         return val_dl
+
 
     @staticmethod
     def dice_loss(predictions, labels, epsilon=1):
@@ -153,27 +154,33 @@ class SegmentationTrainingApp(TrainingApp):
         log.info(f'Starting {type(self).__name__, self.cli_args}')
 
         train_dl = self.init_train_dl()
-        val_dl = self.init_val_dl()
+        val_dl = self.init_eval_dl()
+        test_dl = self.init_eval_dl(split='test')
 
         best_score = 0.0
-        for epoch_index in range(1, self.cli_args.epochs + 1):
+        epoch = 1
+        for _ in range(self.cli_args.epochs):
             log.info(
-                f'Epoch {epoch_index} of {self.cli_args.epochs}, ' +
+                f'Epoch {epoch} of {self.cli_args.epochs}, ' +
                 f'{len(train_dl)}/{len(val_dl)} batches of size {self.cli_args.batch_size} '
             )
 
-            train_metrics = self.train(epoch_index, self.model, self.optimizer, train_dl, METRICS_SIZE)
-            self.log_metrics(epoch_index, 'train', train_metrics)
+            train_metrics = self.train(epoch, self.model, self.optimizer, train_dl, METRICS_SIZE)
+            self.log_metrics(epoch, 'train', train_metrics)
 
-            if epoch_index == 1 or epoch_index % self.validation_cadence == 0:
-                val_metrics = self.eval(epoch_index, self.model, val_dl, METRICS_SIZE)
-                score = self.log_metrics(epoch_index, 'eval', val_metrics)
+            if epoch == 1 or epoch % self.validation_cadence == 0:
+                val_metrics = self.eval(epoch, self.model, val_dl, METRICS_SIZE)
+                score = self.log_metrics(epoch, 'eval', val_metrics)
                 best_score = max(score, best_score)
 
-                self.save_model('seg', epoch_index, score == best_score)
+                self.save_model('seg', epoch, score == best_score)
 
-                self.log_images(epoch_index, 'train', train_dl)
-                self.log_images(epoch_index, 'eval', val_dl)
+                self.log_images(epoch, 'train', train_dl)
+                self.log_images(epoch, 'eval', val_dl)
+            epoch += 1
+
+        test_metrics = self.eval(epoch, self.model, test_dl, METRICS_SIZE)
+        self.log_metrics(epoch, 'test', test_metrics)
 
         self.writer.close()
 

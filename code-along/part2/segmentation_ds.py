@@ -201,8 +201,10 @@ class Luna2dSegmentationDataset(Dataset):
         return len(self.sample_list)
 
     def __getitem__(self, index):
-        series_uid, slice_index = self.sample_list[index % len(self.sample_list)]   # Wrap if we run out of samples
-        return self.getitem_full_slice(series_uid, slice_index)
+        # series_uid, slice_index = self.sample_list[index % len(self.sample_list)]   # Wrap if we run out of samples
+        # return self.getitem_full_slice(series_uid, slice_index)
+        candidate_info_tup = self.pos_list[index % len(self.pos_list)]
+        return self.getitem_training_crop(candidate_info_tup)
 
     def getitem_full_slice(self, series_uid, slice_index):
         ct = get_segmentation_ct(series_uid)
@@ -220,29 +222,6 @@ class Luna2dSegmentationDataset(Dataset):
         pos_t = torch.from_numpy(ct.positive_mask[slice_index]).unsqueeze(0)
 
         return ct_t, pos_t, ct.series_uid, slice_index
-
-
-class TrainingLuna2dSegmentationDataset(Luna2dSegmentationDataset):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.ratio_int = 2
-
-    def epoch_reset(self, update_ratio):
-        self.shuffle_samples()
-        if self.ratio_int and update_ratio:
-            self.ratio_int += 1
-
-    def shuffle_samples(self):
-        random.shuffle(self.candidate_info_list)
-        random.shuffle(self.pos_list)
-
-    def __len__(self):
-        return 300_000
-
-    def __getitem__(self, index):
-        candidate_info_tup = self.pos_list[index % len(self.pos_list)]
-        return self.getitem_training_crop(candidate_info_tup)
 
     @staticmethod
     def getitem_training_crop(candidate_info_tup):
@@ -268,11 +247,35 @@ class TrainingLuna2dSegmentationDataset(Luna2dSegmentationDataset):
         return ct_t, pos_t, candidate_info_tup.series_uid, slice_index
 
 
+class TrainingLuna2dSegmentationDataset(Luna2dSegmentationDataset):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.ratio_int = 2
+        self.length = 300_000
+
+    def epoch_reset(self, update_ratio):
+        self.shuffle_samples()
+        if self.ratio_int and update_ratio:
+            self.ratio_int += 1
+
+    def shuffle_samples(self):
+        random.shuffle(self.candidate_info_list)
+        random.shuffle(self.pos_list)
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, index):
+        candidate_info_tup = self.pos_list[index % len(self.pos_list)]
+        return self.getitem_training_crop(candidate_info_tup)
+
+
 class PrecacheLunaDataset(Dataset):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.candidate_info_list = copy.copy(get_candidate_info_list(kwargs['require_on_disk']))
+        self.candidate_info_list = copy.copy(get_candidate_info_list())
         self.pos_list = [nt for nt in self.candidate_info_list if nt.isNodule_bool]
 
         self.seen_set = set()
